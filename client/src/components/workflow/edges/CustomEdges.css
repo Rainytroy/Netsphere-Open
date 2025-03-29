@@ -1,0 +1,50 @@
+/* 连接线动画效果 */
+.animated-segment {
+  animation: breatheAndFlow 15s ease-in-out infinite; /* 更平滑的动画周期 */
+  stroke-dasharray: 40, 40; /* 40px显示，40px间隔 */
+}
+
+@keyframes breatheAndFlow {
+  0% { 
+    opacity: 0.4; 
+    stroke-dashoffset: 80; /* 调整为总长度 40+40 */
+  }
+  50% { 
+    opacity: 0.8; 
+    stroke-dashoffset: 40; /* 调整为总长度的一半 */
+  }
+  100% { 
+    opacity: 0.4; 
+    stroke-dashoffset: 0; 
+  }
+}
+
+/* 添加悬停效果 */
+.react-flow__edge:hover .animated-segment {
+  animation-duration: 10s; /* 悬停时加速动画 */
+  opacity: 0.9; /* 悬停时增加可见度 */
+}
+
+/* 不同类型连接的颜色配置 - 增强颜色对比度 */
+.edge-yes .animated-segment {
+  stroke: #059405; /* 使用起点卡绿色 */
+  animation-duration: 15s; /* 统一为15秒 */
+  opacity: 0.9; /* 增加不透明度 */
+}
+
+.edge-no .animated-segment {
+  stroke: #f5222d; /* 红色 */
+  animation-duration: 15s; /* 统一为15秒 */
+  opacity: 0.9; /* 增加不透明度 */
+}
+
+.edge-regular .animated-segment {
+  stroke: #001529; /* 左侧导航深蓝色 */
+  animation-duration: 15s; /* 统一为15秒 */
+  opacity: 0.9; /* 增加不透明度 */
+}
+
+/* 确保动画线段在边的上方 */
+.react-flow__edge.selected .animated-segment {
+  opacity: 0.8; /* 选中时稍微增加不透明度 */
+}

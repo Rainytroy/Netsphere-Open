@@ -1,0 +1,82 @@
+{
+  "version": "0.2.8",
+  "name": "Netsphere",
+  "timestamp": "2025-03-18T03:00:00+08:00",
+  "description": "变量标识符处理功能增强：改进变量ID识别和更新机制，修复连续变量处理问题，优化变量类型推断准确性，并启用自动更新功能。",
+  "modules": {
+    "npc": {
+      "status": "implementing",
+      "version": "1.3.0"
+    },
+    "task": {
+      "status": "implementing",
+      "version": "0.4.0"
+    },
+    "workflow": {
+      "status": "developing",
+      "version": "0.2.0"
+    },
+    "variable": {
+      "status": "completed",
+      "version": "1.2.0"
+    },
+    "aiService": {
+      "status": "completed",
+      "version": "1.1.0"
+    }
+  },
+  "components": {
+    "server": {
+      "path": "D:\\Netsphere\\server",
+      "lastModified": "2025-03-16T03:35:00+08:00"
+    },
+    "client": {
+      "path": "D:\\Netsphere\\client",
+      "lastModified": "2025-03-16T03:35:00+08:00"
+    },
+    "docs": {
+      "path": "D:\\Netsphere\\docs",
+      "lastModified": "2025-03-16T03:35:00+08:00"
+    }
+  },
+  "keyFiles": [
+    "D:\\Netsphere\\client\\src\\components\\variable\\VariableEditorUtils.ts",
+    "D:\\Netsphere\\client\\src\\utils\\VariableResolver.ts",
+    "D:\\Netsphere\\client\\src\\components\\variable\\VariableEditor2.tsx"
+  ],
+  "changes": [
+    {
+      "type": "fix",
+      "file": "D:\\Netsphere\\client\\src\\components\\variable\\VariableEditorUtils.ts",
+      "description": "改进变量ID识别逻辑，增加词边界检查和变量处理去重机制"
+    },
+    {
+      "type": "fix",
+      "file": "D:\\Netsphere\\client\\src\\utils\\VariableResolver.ts",
+      "description": "重新启用并增强变量标识符更新功能，解决处理连续变量的问题"
+    },
+    {
+      "type": "enhancement",
+      "file": "D:\\Netsphere\\client\\src\\components\\variable\\VariableEditor2.tsx",
+      "description": "启用自动更新功能，使其使用增强版变量标识符处理逻辑"
+    },
+    {
+      "type": "docs",
+      "file": "D:\\Netsphere\\variable-id-bugfix-v0.2.8.md",
+      "description": "创建详细的变更文档，记录变量处理功能的改进和修复"
+    }
+  ],
+  "recovery": {
+    "instructions": "如需恢复到此版本，请按照以下步骤操作：\n1. 确保已备份当前修改\n2. 执行以下命令切换到回滚分支：\n   git -C D:\\Netsphere checkout v0.2.8\n3. 使用 'start-dev.bat' 启动服务\n\n如果遇到服务启动问题，请使用 'stop-dev-simple.bat' 清理残留进程"
+  },
+  "gitInfo": {
+    "tag": "v0.2.8",
+    "commitMessage": "fix: 变量标识符处理功能增强 v0.2.8",
+    "branch": "v0.2.8",
+    "branches": {
+      "current": "v0.2.8",
+      "feature": "feature/variable-id-bugfix",
+      "related": ["v0.2.7", "master"]
+    }
+  }
+}

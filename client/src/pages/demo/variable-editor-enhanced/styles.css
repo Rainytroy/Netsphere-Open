@@ -1,0 +1,131 @@
+/* 变量编辑器X样式 */
+
+.variable-editor-x-container {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+}
+
+.editor-content {
+  min-height: 200px;
+  padding: 10px;
+  overflow-y: auto;
+}
+
+.editor-content p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+/* 变量标签样式 */
+.variable-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin: 0 2px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.9em;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+  color: rgba(0, 0, 0, 0.85);
+  transition: all 0.2s;
+  background-color: rgba(0, 0, 0, 0.04);
+  border: 1px solid transparent;
+}
+
+/* 变量类型样式 */
+.variable-type-npc {
+  background-color: rgba(24, 144, 255, 0.15);
+  border-color: #1890FF;
+  color: #1890FF;
+}
+
+.variable-type-task {
+  background-color: rgba(56, 158, 13, 0.15);
+  border-color: #389E0D;
+  color: #389E0D;
+}
+
+.variable-type-workflow {
+  background-color: rgba(114, 46, 209, 0.15);
+  border-color: #722ED1;
+  color: #722ED1;
+}
+
+.variable-type-custom {
+  background-color: rgba(250, 140, 22, 0.15);
+  border-color: #FA8C16;
+  color: #FA8C16;
+}
+
+.variable-type-file {
+  background-color: rgba(19, 194, 194, 0.15);
+  border-color: #13C2C2;
+  color: #13C2C2;
+}
+
+.variable-type-system {
+  background-color: rgba(89, 89, 89, 0.15);
+  border-color: #595959;
+  color: #595959;
+}
+
+.variable-type-unknown {
+  background-color: rgba(217, 217, 217, 0.15);
+  border-color: #D9D9D9;
+  color: #595959;
+}
+
+/* ID部分半透明显示 */
+.variable-id-part {
+  opacity: 0.7;
+  font-size: 0.85em;
+}
+
+/* 编辑器工具栏样式 */
+.editor-toolbar {
+  display: flex;
+  padding: 8px 12px;
+  border-bottom: 1px solid #f0f0f0;
+  background-color: #fafafa;
+}
+
+/* 调试内容样式 */
+.debug-content pre {
+  white-space: pre-wrap;
+  word-break: break-all;
+  background-color: #f5f5f5;
+  padding: 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  max-height: 300px;
+  overflow: auto;
+}
+
+/* 编辑器焦点样式 */
+.ProseMirror:focus {
+  outline: none;
+}
+
+/* 编辑器占位符样式 */
+.editor-placeholder {
+  position: absolute;
+  color: #aaa;
+  pointer-events: none;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .editor-toolbar {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .editor-toolbar .ant-space {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}

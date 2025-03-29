@@ -1,0 +1,47 @@
+{
+  "name": "netsphere-client",
+  "version": "0.3.0",
+  "description": "网络智能体协作平台 - 变量系统重构版",
+  "private": true,
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "dependencies": {
+    "@ant-design/icons": "^5.0.1",
+    "@tiptap/core": "^2.0.0-beta.209",
+    "@tiptap/extension-bubble-menu": "^2.0.0-beta.209",
+    "@tiptap/extension-document": "^2.0.0-beta.209",
+    "@tiptap/extension-paragraph": "^2.0.0-beta.209",
+    "@tiptap/extension-placeholder": "^2.0.0-beta.209",
+    "@tiptap/extension-text": "^2.0.0-beta.209",
+    "@tiptap/react": "^2.0.0-beta.209",
+    "@types/react": "^18.0.28",
+    "@types/react-dom": "^18.0.11",
+    "antd": "^5.2.3",
+    "axios": "^1.8.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.8.2",
+    "react-scripts": "5.0.1",
+    "typescript": "^4.9.5",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/uuid": "^9.0.1"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}

@@ -1,0 +1,62 @@
+# 依赖包
+node_modules/
+npm-debug.log
+package-lock.json
+
+# 构建输出
+/dist
+/build
+server/dist/
+
+# IDE和编辑器文件
+.idea/
+.vscode/
+*.sublime-*
+.DS_Store
+
+# 环境变量和配置
+.env
+.env.local
+.env.*.local
+*.config.local.js
+
+# 日志
+*.log
+logs/
+
+# 文档目录
+docs/
+
+# 备份文件
+backup/
+*_backup*
+*.backup.*
+*.bak
+*.backup
+*_backup_*
+
+# 临时文件
+*.tmp
+temp/
+.cache/
+
+# 调试和测试相关
+tests/
+*.test.js
+*.spec.js
+*.test.ts
+*.spec.ts
+coverage/
+
+# 错误报告和问题追踪
+*BUGFIX-REPORT*
+*bugfix*
+*bug-report*
+
+# 数据库迁移脚本
+server/scripts/
+server/migrations/
+
+# 项目特定排除
+variable-id-bugfix-*.md
+*.http

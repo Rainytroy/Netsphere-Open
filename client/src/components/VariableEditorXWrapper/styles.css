@@ -1,0 +1,189 @@
+/* 扁平化编辑器样式 - VEX 1.2版本健壮优化 */
+
+/* VariableEditorXWrapper V1.2整体布局 - 根容器 */
+.vex-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  position: relative;
+  border: 1px solid #d9d9d9; /* 仅保留外边框 */
+  border-radius: 4px;
+  overflow: hidden; /* 确保子元素不溢出 */
+  transition: all 0.3s cubic-bezier(0.645, 0.045, 0.355, 1);
+  padding: 0; /* 确保没有内边距 */
+  margin: 0; /* 确保没有外边距 */
+}
+
+/* 根容器聚焦状态样式 - 只应用在最外层 */
+.vex-container:focus-within {
+  border-color: #40a9ff;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
+
+/* 禁用内部编辑器元素的焦点边框样式 */
+.vex-container .editor-content *:focus-within {
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* 简化的编辑器内容区域 - 超扁平版 */
+.vex-container .editor-content {
+  position: relative;
+  margin: 0;
+  padding: 0;
+  flex: 1; /* 允许编辑器占据剩余空间 */
+  background-color: white; /* 确保背景为白色 */
+  min-height: 120px; /* 确保最小高度合理 */
+  overflow: visible; /* 允许内容溢出，由内部ProseMirror控制滚动 */
+  width: 100%; /* 确保宽度填满 */
+  border-bottom: none; /* 移除底部边框 */
+}
+
+/* 直接优化EditorCore */
+.vex-container .editor-content .editor-core {
+  height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  outline: none !important;
+}
+
+/* 优化TipTap容器 */
+.vex-container .editor-content .tiptap-content-wrapper {
+  height: 100% !important;
+  border: none !important;
+  outline: none !important;
+}
+
+/* ProseMirror编辑器样式重构 - 启用滚动条 */
+.vex-container .editor-content .ProseMirror {
+  min-height: 120px !important;
+  padding: 8px 16px !important; /* 增加左右边距为16px */
+  margin: 0 !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+  border: none !important;
+  outline: none !important;
+  overflow: auto !important; /* 启用滚动条 */
+  max-height: 300px !important; /* 设置最大高度以使滚动条显示 */
+  height: 100% !important; /* 确保高度填充父容器 */
+  box-shadow: none !important; /* 取消任何可能的阴影 */
+  width: 100% !important; /* 确保宽度填满 */
+}
+
+/* 为ProseMirror内容移除左右内边距 */
+.vex-container .editor-content .ProseMirror > * {
+  padding: 0 !important; /* 移除所有内边距 */
+}
+
+/* 完全禁用TipTap和ProseMirror的内部焦点样式 */
+.vex-container .editor-content .ProseMirror:focus,
+.vex-container .editor-content .ProseMirror:focus-within,
+.vex-container .editor-content .tiptap-content-wrapper:focus,
+.vex-container .editor-content .tiptap-content-wrapper:focus-within,
+.vex-container .editor-content .editor-core:focus,
+.vex-container .editor-content .editor-core:focus-within {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* 表单禁用样式 */
+.vex-container[disabled],
+.vex-container[data-disabled="true"] {
+  background-color: #f5f5f5;
+  color: rgba(0, 0, 0, 0.25);
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+/* 自定义工具栏样式 - 优化版 */
+.vex-container .editor-toolbar {
+  display: flex;
+  align-items: center;
+  padding: 0 8px; /* 使用8px左右内边距，与编辑器内容对齐 */
+  margin: 0; /* 移除外边距 */
+  background-color: white; /* 使用白色背景，不再使用灰色 */
+  height: 40px; /* 固定高度 */
+  justify-content: space-between; /* 两端对齐 */
+  position: relative; /* 使用相对定位防止干扰周围元素 */
+  z-index: 1; /* 提供合适的层叠上下文 */
+  width: 100%; /* 确保宽度填满 */
+  border: none; /* 确保没有边框 */
+  box-sizing: border-box; /* 确保边框计入宽度 */
+}
+
+/* 按钮样式 - 浅灰色按钮 */
+.vex-container .vex-toolbar-btn {
+  margin-right: 0 !important; /* 移除右边距 */
+  margin-left: 4px !important; /* 减少左边距 */
+  font-size: 12px !important;
+  height: 28px !important;
+  padding: 0 8px !important;
+  background-color: #f5f5f5 !important; /* 浅灰色背景 */
+  color: rgba(0, 0, 0, 0.65) !important; /* 稍深一点的文字颜色 */
+  border: none !important;
+  vertical-align: middle !important;
+  line-height: 28px !important;
+  cursor: pointer !important;
+  transition: all 0.3s !important;
+  border-radius: 4px !important; /* 添加圆角 */
+}
+
+.vex-container .vex-toolbar-btn:hover {
+  color: rgba(0, 0, 0, 0.85) !important;
+  background-color: #e8e8e8 !important; /* 深一点的灰色 */
+}
+
+.vex-container .vex-toolbar-btn:active {
+  color: rgba(0, 0, 0, 0.95) !important;
+  background-color: #d9d9d9 !important;
+}
+
+/* 图标样式 */
+.vex-container .vex-toolbar-btn .anticon {
+  font-size: 12px !important;
+  margin-right: 4px !important; /* 增加间距 */
+  vertical-align: middle !important;
+  color: rgba(0, 0, 0, 0.65) !important; /* 与按钮文字颜色一致 */
+}
+
+/* 工具栏版本号 */
+.vex-container .editor-toolbar .vex-toolbar-version {
+  font-size: 11px;
+  color: #bbb;
+  margin-left: auto;
+  margin-right: 4px; /* 减少右边距 */
+  -webkit-user-select: none; /* Safari 3+ */
+  -moz-user-select: none; /* Firefox */
+  -ms-user-select: none; /* IE 10+ */
+  user-select: none; /* 标准语法 */
+}
+
+/* 变量样式 - 与编辑器原始样式保持一致 */
+.vex-container .editor-content .variable-node {
+  background-color: #f0f9ff;
+  border-radius: 3px;
+  padding: 0 2px;
+  border: 1px solid #91d5ff;
+  font-size: 0.9em;
+  white-space: nowrap;
+  display: inline-block;
+  line-height: 1.5;
+  margin: 0 1px;
+  vertical-align: baseline;
+}
+
+/* 响应式调整 */
+@media (max-width: 480px) {
+  .vex-container .editor-toolbar {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 4px 8px; /* 保持左右内边距8px，与编辑器内容对齐 */
+  }
+  
+  .vex-container .vex-toolbar-btn {
+    margin-bottom: 4px;
+  }
+}

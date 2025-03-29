@@ -1,0 +1,175 @@
+[33mtag v0.0.3[m
+Tagger: Netsphere Development Team <dev@netsphere.example.com>
+Date:   Sat Mar 8 18:07:51 2025 +0800
+
+版本0.0.3：全局变量模块完成实现
+
+[33mcommit 682383666536d20f87d92815feb789b708e0a5b7[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m, [m[1;33mtag: [m[1;33mv0.0.3[m[33m)[m
+Author: Netsphere Development Team <dev@netsphere.example.com>
+Date:   Sat Mar 8 18:07:42 2025 +0800
+
+    完成全局变量模块实现：添加变量源注册机制、标识符格式规范和UI优化
+
+[1mdiff --git a/README.md b/README.md[m
+[1mindex 93fe8d9..d16a5a3 100644[m
+[1m--- a/README.md[m
+[1m+++ b/README.md[m
+[36m@@ -1,5 +1,7 @@[m
+ # Netsphere 项目说明文档[m
+ [m
+[32m+[m[32m**当前版本**: v0.0.3（全局变量模块完成实现）[m
+[32m+[m
+ ## 项目简介[m
+ [m
+ Netsphere是一个基于AI的工作流平台，允许用户创建AI驱动的NPC、设计工作任务和编排工作流程。该平台主要面向两类用户：[m
+[36m@@ -13,6 +15,10 @@[m [mNetsphere是一个基于AI的工作流平台，允许用户创建AI驱动的NPC[m
+ 3. **工作流编排**：连接多个工作任务，处理复杂需求[m
+ 4. **全局变量系统**：在任务之间共享和传递数据[m
+ [m
+[32m+[m[32m## 已完成模块[m
+[32m+[m[32m- **NPC模块** (v1.0.0): 支持NPC创建、编辑、删除和头像上传[m
+[32m+[m[32m- **全局变量模块** (v1.0.0): 支持变量源注册机制、标识符格式规范和多种筛选功能[m
+[32m+[m
+ ## 技术栈[m
+ [m
+ ### 后端[m
+[36m@@ -98,9 +104,9 @@[m [mgraph TD[m
+    - 数据库初始化[m
+ [m
+ 2. **核心模块开发**[m
+[31m-   - 先开发NPC管理模块[m
+[32m+[m[32m   - ✅ 先开发NPC管理模块[m
+[32m+[m[32m   - ✅ 实现全局变量系统[m
+    - 再开发工作任务模块[m
+[31m-   - 然后实现全局变量系统[m
+    - 最后开发工作流模块[m
+ [m
+ 3. **集成测试与功能验证**[m
+[1mdiff --git a/client/src/App.tsx b/client/src/App.tsx[m
+[1mindex 3358118..5abcc5f 100644[m
+[1m--- a/client/src/App.tsx[m
+[1m+++ b/client/src/App.tsx[m
+[36m@@ -8,6 +8,10 @@[m [mimport HomePage from './pages/HomePage';[m
+ import NpcListPage from './pages/npc/NpcListPage';[m
+ import NpcCreatePage from './pages/npc/NpcCreatePage';[m
+ import NpcEditPage from './pages/npc/NpcEditPage';[m
+[32m+[m[32m// 全局变量模块页面[m
+[32m+[m[32mimport VariableListPage from './pages/variable/VariableListPage';[m
+[32m+[m[32mimport VariableCreatePage from './pages/variable/VariableCreatePage';[m
+[32m+[m[32mimport VariableEditPage from './pages/variable/VariableEditPage';[m
+ // 后续会添加更多页面[m
+ // import TaskListPage from './pages/task/TaskListPage';[m
+ // import WorkflowListPage from './pages/workflow/WorkflowListPage';[m
+[36m@@ -25,6 +29,11 @@[m [mfunction App() {[m
+             <Route path="/npc/create" element={<NpcCreatePage />} />[m
+             <Route path="/npc/edit/:id" element={<NpcEditPage />} />[m
+             [m
+[32m+[m[32m            {/* 全局变量模块路由 */}[m
+[32m+[m[32m            <Route path="/variable/list" element={<VariableListPage />} />[m
+[32m+[m[32m            <Route path="/variable/create" element={<VariableCreatePage />} />[m
+[32m+[m[32m            <Route path="/variable/edit/:id" element={<VariableEditPage />} />[m
+[32m+[m[41m            [m
+             {/* 后续会添加更多路由 */}[m
+             {/* <Route path="/task" element={<TaskListPage />} /> */}[m
+             {/* <Route path="/workflow" element={<WorkflowListPage />} /> */}[m
+[1mdiff --git a/client/src/components/layout/MainLayout.tsx b/client/src/components/layout/MainLayout.tsx[m
+[1mindex 081cc1f..30e3bd0 100644[m
+[1m--- a/client/src/components/layout/MainLayout.tsx[m
+[1m+++ b/client/src/components/layout/MainLayout.tsx[m
+[36m@@ -44,10 +44,10 @@[m [mconst MainLayout: React.FC = () => {[m
+       onClick: () => navigate('/workflow'),[m
+     },[m
+     {[m
+[31m-      key: '/variable',[m
+[32m+[m[32m      key: '/variable/list',[m
+       icon: <DatabaseOutlined />,[m
+       label: '全局变量',[m
+[31m-      onClick: () => navigate('/variable'),[m
+[32m+[m[32m      onClick: () => navigate('/variable/list'),[m
+     },[m
+     {[m
+       key: '/settings',[m
+[1mdiff --git a/client/src/components/npc/NpcForm.tsx b/client/src/components/npc/NpcForm.tsx[m
+[1mindex bd6eaee..3b346e5 100644[m
+[1m--- a/client/src/components/npc/NpcForm.tsx[m
+[1m+++ b/client/src/components/npc/NpcForm.tsx[m
+[36m@@ -1,4 +1,4 @@[m
+[31m-import React, { useState } from 'react';[m
+[32m+[m[32mimport * as React from 'react';[m
+ import { Form, Input, InputNumber, Button, message } from 'antd';[m
+ import { Npc } from '../../services/npcService';[m
+ import AvatarUploader from './AvatarUploader';[m
+[36m@@ -22,7 +22,7 @@[m [mconst NpcForm: React.FC<NpcFormProps> = ({[m
+   loading = false,[m
+ }) => {[m
+   const [form] = Form.useForm();[m
+[31m-  const [avatarUrl, setAvatarUrl] = useState<string | undefined>(initialValues?.avatar);[m
+[32m+[m[32m  const [avatarUrl, setAvatarUrl] = React.useState<string | undefined>(initialValues?.avatar);[m
+ [m
+   // 处理表单提交[m
+   const handleSubmit = (values: any) => {[m
+[1mdiff --git a/client/src/components/variable/VariableForm.tsx b/client/src/components/variable/VariableForm.tsx[m
+[1mnew file mode 100644[m
+[1mindex 0000000..87140f8[m
+[1m--- /dev/null[m
+[1m+++ b/client/src/components/variable/VariableForm.tsx[m
+[36m@@ -0,0 +1,68 @@[m
+[32m+[m[32mimport React from 'react';[m
+[32m+[m[32mimport { Form, Input, Button } from 'antd';[m
+[32m+[m[32mimport { Variable } from '../../services/variableService';[m
+[32m+[m
+[32m+[m[32minterface VariableFormProps {[m
+[32m+[m[32m  initialValues?: Partial<Variable>;[m
+[32m+[m[32m  onSubmit: (values: { name: string; value: string }) => void;[m
+[32m+[m[32m  submitButtonText: string;[m
+[32m+[m[32m  loading?: boolean;[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32m/**[m
+[32m+[m[32m * 变量表单组件，用于创建或编辑变量[m
+[32m+[m[32m */[m
+[32m+[m[32mconst VariableForm: React.FC<VariableFormProps> = ({[m
+[32m+[m[32m  initialValues,[m
+[32m+[m[32m  onSubmit,[m
+[32m+[m[32m  submitButtonText = '创建',[m
+[32m+[m[32m  loading = false[m
+[32m+[m[32m}) => {[m
+[32m+[m[32m  const [form] = Form.useForm();[m
+[32m+[m[41m  [m
+[32m+[m[32m  const handleSubmit = (values: { name: string; value: string }) => {[m
+[32m+[m[32m    onSubmit(values);[m
+[32m+[m[32m  };[m
+[32m+[m[41m  [m
+[32m+[m[32m  return ([m
+[32m+[m[32m    <Form[m
+[32m+[m[32m      form={form}[m
+[32m+[m[32m      layout="vertical"[m
+[32m+[m[32m      initialValues={initialValues}[m
+[32m+[m[32m      onFinish={handleSubmit}[m
+[32m+[m[32m      autoComplete="off"[m
+[32m+[m[32m    >[m
+[32m+[m[32m      <Form.Item[m
+[32m+[m[32m        label="变量名称"[m
+[32m+[m[32m        name="name"[m
+[32m+[m[32m        rules={[[m
+[32m+[m[32m          { required: true, message: '请输入变量名称' },[m
+[32m+[m[32m          { pattern: /^[a-zA-Z0-9\u4e00-\u9fa5_]+$/, message: '变量名称只能包含字母、数字、汉字和下划线' }[m
+[32m+[m[32m        ]}[m
+[32m+[m[32m      >[m
+[32m+[m[32m        <Input placeholder="请输入变量名称（将用于生成标识符）" />[m
+[32m+[m[32m      </Form.Item>[m
+[32m+[m[41m      [m
+[32m+[m[32m      <Form.Item[m
+[32m+[m[32m        label="变量值"[m
+[32m+[m[32m        name="value"[m
+[32m+[m[32m        rules={[{ required: true, message: '请输入变量的值' }]}[m
+[32m+[m[32m      >[m
+[32m+[m[32m        <Input.TextArea rows={6} placeholder="请输入变量的值" />[m
+[32m+[m[32m      </Form.Item>[m
+[32m+[m[41m      [m
+[32m+[m[32m      <Form.Item>[m
+[32m+[m[32m        <Button[m
+[32m+[m[32m          type="primary"[m
+[32m+[m[32m          htmlType="submit"[m
+[32m+[m[32m          loading={loading}[m
+[32m+[m[32m          style={{ backgroundColor: '

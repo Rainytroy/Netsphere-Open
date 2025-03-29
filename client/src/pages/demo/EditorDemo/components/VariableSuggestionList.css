@@ -1,0 +1,132 @@
+.variable-suggestion-list {
+  background-color: rgb(45, 45, 45); /* 深灰色背景 */
+  border: 1px solid rgb(45, 45, 45); /* 边框颜色与背景一致 */
+  border-radius: 4px;
+  box-shadow: 0 3px 6px -4px rgba(0, 0, 0, 0.35), 0 6px 16px 0 rgba(0, 0, 0, 0.2),
+              0 10px 20px -4px rgba(0, 0, 0, 0.5); /* 更强的阴影效果 */
+  max-height: 300px;
+  overflow: auto;
+  width: 300px;
+  animation: fadeIn 0.2s;
+  z-index: 1000;
+  color: #ffffff; /* 白色文字 */
+}
+
+/* 自定义滚动条样式 */
+.variable-suggestion-list::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.variable-suggestion-list::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 3px;
+}
+
+.variable-suggestion-list::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2); /* 亮色滚动条 */
+  border-radius: 3px;
+}
+
+.variable-suggestion-list::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.3); /* 亮色滚动条悬停 */
+}
+
+.variable-item {
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  color: #ffffff; /* 白色文字 */
+}
+
+.variable-item:hover {
+  background-color: #202020; /* 鼠标悬停时的背景色 */
+}
+
+.variable-item.is-selected {
+  background-color: #181818; /* 选中项的背景色 */
+}
+
+.variable-item-content {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.variable-identifier {
+  font-size: 14px;
+  font-weight: normal;
+  margin-bottom: 2px;
+  color: #ffffff; /* 确保标识符主色为白色 */
+}
+
+.variable-id-part {
+  opacity: 0.5; /* 在深色背景上提高透明度以保持可见性 */
+  color: #ffffff; /* 确保标识符主色为白色 */
+}
+
+.variable-item-details {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.variable-source {
+  color: #b0b0b0; /* 浅灰色文字以在深色背景上提供更好的对比度 */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+
+/* 淡入动画 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 变量标签样式 */
+.variable-tag {
+  display: inline-flex;
+  align-items: center;
+  background-color: #F0F7FF;
+  border: 1px solid #D0E8FF;
+  border-radius: 4px;
+  padding: 2px 8px;
+  margin: 0 2px;
+  color: #0F56B3;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: nowrap;
+  -webkit-user-select: all;
+  user-select: all;
+}
+
+/* 根据变量类型设置不同颜色 */
+.variable-tag[data-type="npc"] {
+  border-color: #1890FF;
+}
+
+.variable-tag[data-type="task"] {
+  border-color: #52C41A;
+}
+
+.variable-tag[data-type="custom"] {
+  border-color: #FA8C16;
+}
+
+.variable-tag[data-type="file"] {
+  border-color: #13C2C2;
+}
+
+.variable-tag[data-type="workflow"],
+.variable-tag[data-type="ai"] {
+  border-color: #722ED1;
+}

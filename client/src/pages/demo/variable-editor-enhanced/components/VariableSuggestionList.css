@@ -1,0 +1,77 @@
+/* 变量选择器列表样式 */
+
+.variable-suggestion-list {
+  max-height: 300px;
+  overflow-y: auto;
+  background-color: #fff;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  width: 300px;
+}
+
+.variable-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.variable-item:hover, .variable-item.is-selected {
+  background-color: #f5f5f5;
+}
+
+.variable-item-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.variable-identifier {
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+}
+
+.variable-id-part {
+  opacity: 0.7;
+  font-size: 0.9em;
+  margin-left: 4px;
+}
+
+.variable-item-details {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.variable-source {
+  color: #595959;
+}
+
+.variable-search {
+  padding: 8px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.variable-search input {
+  width: 100%;
+  border-radius: 4px;
+  border: 1px solid #d9d9d9;
+  padding: 4px 8px;
+}
+
+.variable-group-title {
+  padding: 4px 12px;
+  color: #8c8c8c;
+  font-size: 12px;
+  background-color: #fafafa;
+  border-top: 1px solid #f0f0f0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.empty-result {
+  padding: 12px;
+  text-align: center;
+  color: #8c8c8c;
+}

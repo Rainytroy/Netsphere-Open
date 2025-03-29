@@ -1,0 +1,295 @@
+/*
+ * 变量编辑器2.0样式
+ * 提供标签式变量节点和编辑器主题
+ */
+
+/* 
+ * 自动更新遮罩层和动画 
+ * 可以通过注释这部分来禁用动画效果
+ */
+.editor-update-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.editor-update-overlay.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* 加载动画 */
+.editor-update-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: #fff;
+  animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.editor-container {
+  border: 1px solid #d9d9d9;
+  border-radius: 2px;
+  padding: 4px 11px;
+  transition: all 0.3s;
+  background-color: white;
+  position: relative;
+  overflow: hidden;
+}
+
+.editor-container:focus-within, .editor-container-focused {
+  border-color: #40a9ff;
+  border-right-width: 1px !important;
+  outline: 0;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
+
+/* 变量标签样式 */
+[data-variable], .variable-tag, span[data-type="variable"] {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 2px;
+  padding: 0 7px;
+  height: 24px;
+  border-radius: 12px;
+  background-color: #f5f5f5;
+  border: 1px solid #e8e8e8;
+  color: #1890ff;
+  font-size: 14px;
+  line-height: 1;
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+  vertical-align: middle;
+  transition: all 0.3s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
+}
+
+/* 自定义变量标签 - 增强规则以覆盖所有自定义变量格式 */
+[data-identifier*="#custom"], span[identifier*="#custom"],
+[data-type="custom"], span[data-type="custom"], 
+[type="custom"], span[type="custom"],
+[data-identifier*="@1."], span[identifier*="@1."] {
+  background-color: #fff7e6 !important;
+  border-color: #ffd591 !important;
+  color: #FA8C16 !important;
+}
+
+/* NPC类型变量标签 */
+[data-type="npc"], span[data-type="npc"], 
+[data-variable][type="npc"], span[identifier*=".name"] {
+  background-color: #e6f7ff;
+  border-color: #91d5ff;
+  color: #1890FF;
+}
+
+/* 工作任务类型变量标签 */
+[data-type="task"], span[data-type="task"], 
+[data-variable][type="task"], 
+span[identifier*=".output"], span[identifier*=".input"],
+span[identifier*="#"][data-type="task"], span[type="task"] {
+  background-color: #f6ffed !important; /* 使用!important提高优先级 */
+  border-color: #b7eb8f !important;
+  color: #389e0d !important; /* 加深绿色，从#52C41A改为#389e0d */
+}
+
+/* 文件类型变量标签 */
+[data-type="file"], span[data-type="file"], 
+[data-variable][type="file"] {
+  background-color: #e6fffb;
+  border-color: #87e8de;
+  color: #13C2C2;
+}
+
+/* 工作流类型变量标签 */
+[data-type="workflow"], span[data-type="workflow"], 
+[data-variable][type="workflow"] {
+  background-color: #f9f0ff;
+  border-color: #d3adf7;
+  color: #722ED1;
+}
+
+/* 鼠标悬停效果 */
+[data-variable]:hover, .variable-tag:hover, span[data-type="variable"]:hover {
+  background-color: #e6f7ff;
+  border-color: #91d5ff;
+}
+
+/* 编辑器内容样式 */
+.ProseMirror {
+  position: relative;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  white-space: break-spaces;
+  -webkit-font-variant-ligatures: none;
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0;
+  padding: 4px 0;
+  line-height: 1.5;
+  outline: none;
+  min-height: 100px;
+}
+
+.ProseMirror p {
+  margin: 0.5em 0;
+}
+
+.ProseMirror [contenteditable="false"] {
+  white-space: nowrap;
+}
+
+/* 变量标签特殊样式 */
+.variable-node {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  background-color: #f5f5f5;
+  border: 1px solid #e8e8e8;
+  border-radius: 12px;
+  padding: 0 8px;
+  color: #1890ff;
+  font-size: 14px;
+  white-space: nowrap;
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 删除透明度样式，只保留类型的不同颜色 */
+
+/* 变量标签类型特殊标记 */
+.variable-node[data-source] {
+  position: relative;
+}
+
+.variable-node[data-source]:before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 4px;
+  background-color: #1890ff;
+}
+
+/* 自定义类型 */
+.variable-node[data-source="测试"], .variable-node[data-type="custom"] {
+  background-color: #fff7e6;
+  border-color: #ffd591;
+  color: #FA8C16;
+}
+
+.variable-node[data-source="测试"]:before, .variable-node[data-type="custom"]:before {
+  background-color: #FA8C16;
+}
+
+/* NPC类型 */
+.variable-node[data-type="npc"] {
+  background-color: #e6f7ff;
+  border-color: #91d5ff;
+  color: #1890FF;
+}
+
+.variable-node[data-type="npc"]:before {
+  background-color: #1890FF;
+}
+
+/* 工作任务类型 */
+.variable-node[data-type="task"] {
+  background-color: #f6ffed;
+  border-color: #b7eb8f;
+  color: #389e0d; /* 加深绿色，从#52C41A改为#389e0d */
+}
+
+.variable-node[data-type="task"]:before {
+  background-color: #389e0d; /* 加深绿色，从#52C41A改为#389e0d */
+}
+
+/* 文件类型 */
+.variable-node[data-type="file"] {
+  background-color: #e6fffb;
+  border-color: #87e8de;
+  color: #13C2C2;
+}
+
+.variable-node[data-type="file"]:before {
+  background-color: #13C2C2;
+}
+
+/* 工作流类型 */
+.variable-node[data-type="workflow"] {
+  background-color: #f9f0ff;
+  border-color: #d3adf7;
+  color: #722ED1;
+}
+
+.variable-node[data-type="workflow"]:before {
+  background-color: #722ED1;
+}
+
+/* 工具栏样式 */
+.editor-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 4px 0;
+  margin-top: 4px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.toolbar-button {
+  margin-left: 8px;
+}
+
+/* 变量预览模态框样式 */
+.preview-content {
+  margin-bottom: 16px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.preview-content h4 {
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
+.preview-card {
+  margin-bottom: 16px;
+  background-color: #f9f9f9;
+  border-radius: 4px;
+  padding: 12px;
+}
+
+.preview-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.resolved-value {
+  background-color: #f6ffed;
+  padding: 8px;
+  border-radius: 4px;
+  border-left: 3px solid #52c41a;
+}

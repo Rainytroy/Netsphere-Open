@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>变量解析测试工具</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+            background-color: #f7f7f7;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .section h2 {
+            margin-top: 0;
+            color: #3498db;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+        textarea, input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #fff;
+            white-space: pre-wrap;
+            min-height: 120px;
+        }
+        .loading {
+            display: none;
+            margin: 20px auto;
+            text-align: center;
+        }
+        .debug-checkbox {
+            margin-top: 10px;
+        }
+        .status {
+            padding: 10px;
+            margin-top: 15px;
+            border-radius: 4px;
+            display: none;
+        }
+        .status.success {
+            background-color: #d4edda;
+            color: #155724;
+            display: block;
+        }
+        .status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            display: block;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            background-color: #eee;
+            border: 1px solid #ddd;
+            margin-right: 5px;
+            border-radius: 4px 4px 0 0;
+        }
+        .tab.active {
+            background-color: #fff;
+            border-bottom: 1px solid #fff;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>变量解析测试工具</h1>
+        
+        <div class="tabs">
+            <div class="tab active" data-tab="test-resolution">变量解析测试</div>
+            <div class="tab" data-tab="system-diagnosis">系统诊断</div>
+        </div>
+        
+        <div class="tab-content active" id="test-resolution">
+            <div class="section">
+                <h2>文本变量解析</h2>
+                <form id="resolution-form">
+                    <label for="text-input">输入包含变量的文本:</label>
+                    <textarea id="text-input" placeholder="例如: 你好，@gv_f9c17d21-a0a0-476f-973e-433e08f7be38_name">你好，@gv_f9c17d21-a0a0-476f-973e-433e08f7be38_name</textarea>
+                    
+                    <div class="debug-checkbox">
+                        <input type="checkbox" id="debug-mode" checked>
+                        <label for="debug-mode" style="display: inline;">启用调试模式</label>
+                    </div>
+                    
+                    <button type="submit">解析变量</button>
+                </form>
+                
+                <div class="loading" id="resolution-loading">处理中...</div>
+                
+                <div class="status" id="resolution-status"></div>
+                
+                <h3>解析结果:</h3>
+                <div class="result" id="resolution-result">解析结果将显示在这里...</div>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="system-diagnosis">
+            <div class="section">
+                <h2>系统诊断</h2>
+                <button id="diagnose-button">执行系统诊断</button>
+                
+                <div class="loading" id="diagnosis-loading">处理中...</div>
+                
+                <div class="status" id="diagnosis-status"></div>
+                
+                <h3>诊断结果:</h3>
+                <div class="result" id="diagnosis-result">诊断结果将显示在这里...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 切换标签页
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                // 移除所有激活状态
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                
+                // 添加当前标签激活状态
+                tab.classList.add('active');
+                document.getElementById(tab.dataset.tab).classList.add('active');
+            });
+        });
+        
+        // 变量解析表单提交
+        document.getElementById('resolution-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const text = document.getElementById('text-input').value.trim();
+            const debug = document.getElementById('debug-mode').checked;
+            
+            if (!text) {
+                showStatus('resolution-status', '请输入文本', 'error');
+                return;
+            }
+            
+            // 清空之前的结果
+            document.getElementById('resolution-result').textContent = '处理中...';
+            
+            // 显示加载中
+            document.getElementById('resolution-loading').style.display = 'block';
+            
+            try {
+                const response = await fetch('http://localhost:3001/api/variable-diagnostic/test-resolution', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ text, debug })
+                });
+                
+                // 隐藏加载中
+                document.getElementById('resolution-loading').style.display = 'none';
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('resolution-result').textContent = JSON.stringify(data.data, null, 2);
+                    showStatus('resolution-status', '解析成功', 'success');
+                } else {
+                    document.getElementById('resolution-result').textContent = `错误: ${data.error}`;
+                    showStatus('resolution-status', `解析失败: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                // 隐藏加载中
+                document.getElementById('resolution-loading').style.display = 'none';
+                
+                document.getElementById('resolution-result').textContent = `错误: ${error.message}`;
+                showStatus('resolution-status', `请求失败: ${error.message}`, 'error');
+            }
+        });
+        
+        // 系统诊断按钮点击
+        document.getElementById('diagnose-button').addEventListener('click', async () => {
+            // 清空之前的结果
+            document.getElementById('diagnosis-result').textContent = '处理中...';
+            
+            // 显示加载中
+            document.getElementById('diagnosis-loading').style.display = 'block';
+            
+            try {
+                const response = await fetch('http://localhost:3001/api/variable-diagnostic/system');
+                
+                // 隐藏加载中
+                document.getElementById('diagnosis-loading').style.display = 'none';
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('diagnosis-result').textContent = JSON.stringify(data.data, null, 2);
+                    showStatus('diagnosis-status', '诊断成功', 'success');
+                } else {
+                    document.getElementById('diagnosis-result').textContent = `错误: ${data.error}`;
+                    showStatus('diagnosis-status', `诊断失败: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                // 隐藏加载中
+                document.getElementById('diagnosis-loading').style.display = 'none';
+                
+                document.getElementById('diagnosis-result').textContent = `错误: ${error.message}`;
+                showStatus('diagnosis-status', `请求失败: ${error.message}`, 'error');
+            }
+        });
+        
+        // 显示状态消息
+        function showStatus(id, message, type) {
+            const statusElement = document.getElementById(id);
+            statusElement.textContent = message;
+            statusElement.className = 'status';
+            statusElement.classList.add(type);
+        }
+    </script>
+</body>
+</html>

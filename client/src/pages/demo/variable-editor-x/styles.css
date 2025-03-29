@@ -1,0 +1,345 @@
+/* 变量编辑器X样式 */
+
+/* 编辑器容器 */
+.variable-editor-x {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: rgba(0, 0, 0, 0.85);
+}
+
+/* 加载遮罩层样式 */
+.editor-loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 10;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 4px;
+}
+
+.editor-loading-spinner {
+  background-color: white;
+  padding: 16px 24px;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.spinner-icon {
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(0, 0, 0, 0.1);
+  border-top-color: #1890ff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 8px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.spinner-text {
+  font-size: 14px;
+  color: rgba(0, 0, 0, 0.85);
+}
+
+/* 主编辑区包含编辑器和底部工具栏 */
+.editor-area {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #e8e8e8; /* 使用更浅的边框颜色 */
+  border-radius: 4px;
+  transition: all 0.3s;
+  overflow: hidden; /* 防止内部内容溢出 */
+  margin-bottom: 16px; /* 与调试面板分开 */
+}
+
+.editor-area:hover,
+.editor-area:focus-within {
+  /* 统一hover和focus状态的边框样式 */
+  border-color: #40a9ff;
+  /* 添加一个微妙的阴影提供视觉反馈 */
+  box-shadow: 0 0 0 1px rgba(24, 144, 255, 0.1);
+}
+
+/* 编辑器内容区 */
+.editor-container {
+  position: relative;
+  padding: 0 11px;
+  min-height: 150px;
+  cursor: text;
+  border: none; /* 移除内部边框 */
+  /* 移除与底部工具栏分隔的边框 */
+  /* 移除任何可能的焦点样式 */
+  outline: none;
+}
+
+/* 调试面板 - 不再需要容器 */
+.debug-panel {
+  margin-top: 32px; /* 增加与编辑器的间距 */
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: #fff;
+}
+
+/* 底部工具栏 */
+.editor-bottom-toolbar {
+  background-color: #fafafa; /* 使用淡灰色填充背景 */
+  padding: 0; /* 移除所有内边距 */
+  border-radius: 0 0 4px 4px;
+  border: none !important; /* 强制移除边框 */
+  border-top: none !important; /* 确保顶部没有边框 */
+  box-shadow: none !important; /* 移除阴影 */
+  width: 100%; /* 确保占满整个宽度 */
+}
+
+/* 占位符文本 */
+.editor-placeholder {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  pointer-events: none;
+  color: #aaa;
+}
+
+/* 编辑器内容 */
+.ProseMirror {
+  outline: none !important; /* 强制移除TipTap编辑器的轮廓 */
+  padding: 8px 0;
+  min-height: 130px;
+}
+
+/* 确保TipTap内容区域及其所有子元素不会有独立边框或焦点样式 */
+.tiptap-content-wrapper,
+.editor-container .ProseMirror,
+.editor-container div[contenteditable="true"],
+.editor-container .ProseMirror:focus,
+.editor-container div[contenteditable="true"]:focus {
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* 全局禁用编辑器内部元素的焦点样式 */
+.editor-container *:focus,
+.editor-container *:focus-within {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.ProseMirror p {
+  margin: 0.5em 0;
+}
+
+/* 变量标签样式 */
+.variable-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 4px;
+  margin: 0 1px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+  white-space: normal; /* 允许标签文本在必要时换行 */
+  max-width: 100%; /* 确保不会超出容器 */
+  word-break: break-word; /* 确保长单词也能换行 */
+  border: 1px solid;
+  /* 对于特别长的标签，添加垂直方向外边距 */
+  margin-top: 2px;
+  margin-bottom: 2px;
+}
+
+/* 变量类型颜色 - 使用浅色背景和对应深色文本/边框 */
+.variable-type-npc { 
+  background-color: #E6F7FF; 
+  border-color: #1890FF; 
+  color: #1890FF;
+}
+.variable-type-task { 
+  background-color: #E3F9D3; 
+  border-color: #389E0D; 
+  color: #389E0D;
+}
+.variable-type-workflow { 
+  background-color: #F9F0FF; 
+  border-color: #722ED1; 
+  color: #722ED1;
+}
+.variable-type-custom { 
+  background-color: #FFF7E6; 
+  border-color: #FA8C16; 
+  color: #FA8C16;
+}
+.variable-type-file { 
+  background-color: #E6FFFB; 
+  border-color: #13C2C2; 
+  color: #13C2C2;
+}
+.variable-type-system { 
+  background-color: #F5F5F5; 
+  border-color: #595959; 
+  color: #595959;
+}
+
+/* 工具栏 */
+.editor-toolbar {
+  display: flex;
+  align-items: center;
+  margin: 0; /* 移除margin防止出现间隙 */
+  padding: 8px 12px; /* 添加内边距确保工具栏有足够填充空间 */
+  flex-wrap: wrap;
+  width: 100%; /* 确保占满整个宽度 */
+}
+
+.toolbar-button-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0; /* 移除内部元素的边距 */
+  padding: 0; /* 移除内部元素的内边距 */
+}
+
+.toolbar-spacer {
+  flex: 1;
+}
+
+.toolbar-version {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.45);
+}
+
+/* 编辑器工具栏按钮 - 扁平化结构 */
+.editor-toolbar-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  font-size: 12px !important;
+  height: 28px !important;
+  padding: 2px 8px !important;
+  margin-right: 8px !important;
+  border-radius: 4px !important;
+  border: none !important;
+  background-color: transparent !important;
+  color: rgba(0, 0, 0, 0.65) !important;
+  transition: all 0.3s !important;
+}
+
+.editor-toolbar-btn:hover {
+  background-color: #f0f0f0 !important;
+  color: #1890ff !important;
+}
+
+.editor-toolbar-btn .anticon {
+  font-size: 14px !important;
+  margin-right: 4px !important;
+}
+
+/* 在小屏幕上调整工具栏按钮布局 */
+@media (max-width: 480px) {
+  .toolbar-button-group {
+    flex-direction: column;
+    align-items: flex-start;
+    width: 100%;
+  }
+  
+  .variable-selector-button {
+    width: 100%;
+  }
+  
+  .toolbar-version {
+    margin-top: 8px;
+  }
+}
+
+/* 预览模态窗口 */
+.preview-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.45);
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.preview-modal {
+  width: 500px;
+  background-color: #fff;
+  border-radius: 4px;
+  padding: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.preview-modal-title {
+  margin-bottom: 16px;
+  font-weight: bold;
+}
+
+.preview-modal-content {
+  padding: 12px;
+  background-color: #f0f7ff;
+  border-radius: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  line-height: 1.5;
+  margin-bottom: 16px;
+  border: 1px solid #d6e8ff;
+}
+
+.preview-modal-footer {
+  text-align: right;
+}
+
+/* 调试面板 */
+.debug-panel {
+  border-radius: 4px;
+  overflow: hidden;
+  /* 移除明确的边框，让它更干净 */
+  border: none;
+  /* 保持最小的阴影，提供一点深度感 */
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.debug-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background-color: #fafafa;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.debug-panel-title {
+  font-weight: 500;
+}
+
+.debug-content {
+  padding: 16px;
+}
+
+.debug-code {
+  white-space: pre-wrap;
+  word-break: break-all;
+  background-color: #f5f5f5;
+  padding: 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  max-height: 300px;
+  overflow: auto;
+}

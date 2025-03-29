@@ -1,0 +1,53 @@
+[33mtag v0.0.1[m
+Tagger: Netsphere Development Team <dev@netsphere.example.com>
+Date:   Fri Mar 7 13:02:13 2025 +0800
+
+版本 0.0.1：NPC模块完成及React/TypeScript启动问题修复
+
+[33mcommit 8ce35a04ad1ffa8d90422f7b23b39ece8a578418[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m, [m[1;33mtag: [m[1;33mv0.0.1[m[33m)[m
+Author: Netsphere Development Team <dev@netsphere.example.com>
+Date:   Fri Mar 7 13:02:02 2025 +0800
+
+    初始提交 v0.0.1: NPC模块开发完成，修复React/TypeScript启动问题
+
+ .gitignore                                       |    42 [32m+[m
+ Netsphere PRD.pdf                                |   Bin [31m0[m -> [32m1859027[m bytes
+ README.md                                        |   323 [32m+[m
+ client/package-lock.json                         | 18805 [32m+++++++++++++++++++++[m
+ client/package.json                              |    48 [32m+[m
+ client/public/favicon.ico                        |   Bin [31m0[m -> [32m44[m bytes
+ client/public/index.html                         |    24 [32m+[m
+ client/public/manifest.json                      |    25 [32m+[m
+ client/public/robots.txt                         |     3 [32m+[m
+ client/src/App.tsx                               |    38 [32m+[m
+ client/src/SimpleApp.tsx                         |    17 [32m+[m
+ client/src/components/layout/MainLayout.tsx      |    99 [32m+[m
+ client/src/components/npc/AvatarUploader.tsx     |   131 [32m+[m
+ client/src/components/npc/DeleteConfirmModal.tsx |    37 [32m+[m
+ client/src/components/npc/NpcCard.tsx            |    93 [32m+[m
+ client/src/components/npc/NpcForm.tsx            |   136 [32m+[m
+ client/src/index.css                             |    13 [32m+[m
+ client/src/index.tsx                             |    19 [32m+[m
+ client/src/pages/HomePage.tsx                    |    80 [32m+[m
+ client/src/pages/npc/NpcCreatePage.tsx           |    64 [32m+[m
+ client/src/pages/npc/NpcEditPage.tsx             |   129 [32m+[m
+ client/src/pages/npc/NpcListPage.tsx             |   106 [32m+[m
+ client/src/reportWebVitals.ts                    |    17 [32m+[m
+ client/src/services/npcService.ts                |    68 [32m+[m
+ client/tsconfig.json                             |    30 [32m+[m
+ docs/dev-guidelines.md                           |   281 [32m+[m
+ docs/npc-module-design-spec.md                   |   599 [32m+[m
+ log.md                                           |   120 [32m+[m
+ server/package-lock.json                         |  3866 [32m+++++[m
+ server/package.json                              |    40 [32m+[m
+ server/src/controllers/NpcController.ts          |   202 [32m+[m
+ server/src/database.ts                           |    29 [32m+[m
+ server/src/index.ts                              |    60 [32m+[m
+ server/src/models/Npc.ts                         |    41 [32m+[m
+ server/src/routes/npc.ts                         |    42 [32m+[m
+ server/src/types/express-multer.d.ts             |    36 [32m+[m
+ server/src/types/multer.d.ts                     |    53 [32m+[m
+ server/tsconfig.json                             |    21 [32m+[m
+ start-dev.bat                                    |    24 [32m+[m
+ version.json                                     |    50 [32m+[m
+ 40 files changed, 25811 insertions(+)
