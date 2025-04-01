@@ -308,6 +308,33 @@ export class VariableServiceAdapter {
   }
   
   /**
+   * 通过数据库ID获取变量值
+   * 支持v3.0格式：{type}_{entityId}_{field}
+   * @param dbId 变量数据库ID
+   * @returns 变量值，如果找不到则返回undefined
+   */
+  async getVariableValueById(dbId: string): Promise<any> {
+    try {
+      // 通过ID查找变量
+      const variable = await this.variableService.getVariableById(dbId);
+      if (variable) {
+        console.log(`[VariableAdapter] 通过数据库ID找到变量: ${variable.id}`);
+        return variable.value;
+      }
+      
+      console.log(`[VariableAdapter] 没有找到数据库ID变量: ${dbId}`);
+      return undefined;
+    } catch (error) {
+      console.error(`[VariableAdapter] 通过数据库ID获取变量值失败 (${dbId}):`, error);
+      // 如果是"变量不存在"错误，返回undefined而不是抛出异常
+      if (error instanceof Error && error.message.includes('不存在')) {
+        return undefined;
+      }
+      throw error;
+    }
+  }
+  
+  /**
    * 通过短ID和字段名获取变量值，使用增强的模糊匹配
    * 支持显示标识符格式：@source.field#shortId
    * @param shortId 变量短ID（UUID的前几位）
@@ -404,6 +431,75 @@ export class VariableServiceAdapter {
     }
   }
   
+  /**
+   * 通过类型、实体ID和字段名获取变量值
+   * 支持v3.0格式：@gv_{type}_{entityId}_{field}-=
+   * @param type 变量类型，如npc, workflow, task等
+   * @param entityId 实体ID
+   * @param field 字段名称
+   * @returns 变量值，如果找不到则返回undefined
+   */
+  async getVariableValueByTypeAndId(type: string, entityId: string, field: string): Promise<any> {
+    try {
+      console.log(`[VariableAdapter-v3.0] 查找变量: 类型=${type}, 实体ID=${entityId}, 字段=${field}`);
+      
+      // 获取所有变量
+      const variables = await this.variableService.getVariables();
+      
+      // 精确匹配阶段 - 优先尝试精确匹配
+      for (const variable of variables) {
+        // 检查类型、实体ID和字段是否完全匹配
+        const matchesType = variable.type?.toLowerCase() === type.toLowerCase();
+        const matchesEntityId = variable.entityId === entityId || 
+                               (variable.source && variable.source.id === entityId);
+        const matchesField = variable.name === field;
+        
+        if (matchesType && matchesEntityId && matchesField) {
+          console.log(`[VariableAdapter-v3.0] 通过精确类型、实体ID和字段匹配找到变量: ${variable.type}.${variable.entityId}.${variable.name}`);
+          return variable.value;
+        }
+      }
+      
+      // 模糊匹配阶段
+      const typeAndEntityMatches = variables.filter(variable => {
+        // 检查类型是否匹配（模糊匹配）
+        const variableType = (variable.type || '').toLowerCase();
+        const searchType = type.toLowerCase();
+        const typeMatches = variableType === searchType || 
+                           variableType.includes(searchType) || 
+                           searchType.includes(variableType);
+        
+        // 检查实体ID是否模糊匹配
+        const entityMatches = this.idMightMatch(variable.entityId || '', entityId) || 
+                             (variable.source && this.idMightMatch(variable.source.id || '', entityId));
+        
+        return typeMatches && entityMatches;
+      });
+      
+      if (typeAndEntityMatches.length > 0) {
+        console.log(`[VariableAdapter-v3.0] 找到${typeAndEntityMatches.length}个类型和实体ID模糊匹配的变量`);
+        
+        // 尝试在模糊匹配中找到字段匹配的变量
+        const fieldMatch = typeAndEntityMatches.find(v => v.name === field);
+        if (fieldMatch) {
+          console.log(`[VariableAdapter-v3.0] 在模糊匹配中找到字段匹配的变量: ${fieldMatch.type}.${fieldMatch.entityId}.${fieldMatch.name}`);
+          return fieldMatch.value;
+        }
+        
+        // 如果找不到字段匹配，使用第一个匹配结果
+        console.log(`[VariableAdapter-v3.0] 未找到字段匹配，使用首个模糊匹配变量: ${typeAndEntityMatches[0].name}`);
+        return typeAndEntityMatches[0].value;
+      }
+      
+      // 回退到UUID查找
+      console.log(`[VariableAdapter-v3.0] 未找到类型和实体ID匹配，尝试使用entityId作为UUID`);
+      return await this.getVariableValueByUUID(entityId, field);
+    } catch (error) {
+      console.error(`[VariableAdapter-v3.0] 通过类型和实体ID获取变量值失败 (${type}.${entityId}.${field}):`, error);
+      throw error;
+    }
+  }
+
   /**
    * 根据前缀获取所有匹配的变量
    * @param prefix 变量前缀，如"workflow"将匹配所有以"@workflow."开头的变量

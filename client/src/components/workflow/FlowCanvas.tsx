@@ -29,6 +29,7 @@ interface FlowCanvasProps {
   onEdgesChange?: (edges: Edge[]) => void;
   onNodeConfig?: (nodeId: string, config: any) => void; // 节点配置回调
   onSaveWorkflow?: () => Promise<void>; // 工作流保存回调
+  onUpdateEditorState?: (field: string, value: any) => void; // 编辑器状态更新回调
 }
 
 /**
@@ -41,7 +42,8 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
   onNodesChange,
   onEdgesChange,
   onNodeConfig,
-  onSaveWorkflow
+  onSaveWorkflow,
+  onUpdateEditorState
 }) => {
   // 如果提供了外部节点和边，使用它们；否则使用内部状态
   const [nodes, setNodes, onNodesChangeInternal] = useNodesState(externalNodes || initialNodes);
@@ -370,13 +372,25 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
         />
       </ReactFlow>
       
-      {/* 节点配置面板 */}
+      {/* 节点配置面板 - 添加工作流相关属性 */}
       <NodeConfigPanel
         node={selectedNode}
         visible={configPanelVisible}
         onClose={() => setConfigPanelVisible(false)}
         onSave={handleNodeConfigSave}
         onDelete={handleNodeDelete}
+        saveWorkflow={onSaveWorkflow} // 传递工作流保存方法
+        updateEditorState={(field, value) => {
+          // 记录更新请求
+          console.log('[FlowCanvas] 节点请求更新编辑器状态:', field, value);
+          
+          // 调用父组件传入的更新函数
+          if (typeof onUpdateEditorState === 'function') {
+            onUpdateEditorState(field, value);
+          } else {
+            console.warn('[FlowCanvas] onUpdateEditorState未提供，状态更新将不会生效');
+          }
+        }}
       />
     </div>
   );

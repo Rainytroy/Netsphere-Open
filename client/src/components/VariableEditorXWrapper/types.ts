@@ -28,6 +28,9 @@ export interface VariableEditorXWrapperProps {
   height?: number | string;
   placeholder?: string;
   
+  // 变量数据
+  variables?: VariableData[];
+  
   // 工具栏配置 - 简化版，只保留核心功能
   // true = 显示所有按钮，false = 不显示工具栏
   // 对象类型可以精确控制显示哪些按钮

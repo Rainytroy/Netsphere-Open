@@ -150,7 +150,6 @@ export const calculateNodeCounts = (nodes: Node[]): Record<string, number> => {
  */
 export const prepareWorkflowData = (
   name: string, 
-  description: string, 
   isActive: boolean, 
   nodes: Node[], 
   edges: Edge[],
@@ -161,9 +160,21 @@ export const prepareWorkflowData = (
   // 筛选出有效节点（确保不包含被标记为隐藏的节点）
   const validNodes = nodes.filter(node => !node.hidden);
   console.log(`[WorkflowDataHandler] 筛选后有效节点: ${validNodes.length}/${nodes.length}`);
+  console.log(`[WorkflowDataHandler] 有效节点详情:`, validNodes.map(n => ({id: n.id, type: n.type})));
   
-  // 获取有效节点ID列表
-  const validNodeIds = new Set(validNodes.map(node => node.id));
+  // 不再自动添加起点卡，直接使用有效节点
+  let cleanedNodes = [...validNodes];
+  
+  // 记录是否有起点卡，只用于日志
+  const hasStartNode = validNodes.some(node => node.type === 'start');
+  if (!hasStartNode && validNodes.length > 0) {
+    console.log(`[WorkflowDataHandler] 注意: 工作流中没有起点卡`);
+  }
+  
+  console.log('[WorkflowDataHandler] 最终处理后的节点数:', cleanedNodes.length);
+  
+  // 获取有效节点ID列表 - 使用添加了起点卡的cleanedNodes
+  const validNodeIds = new Set(cleanedNodes.map(node => node.id));
   
   // 筛选出有效边（确保连接的节点都存在）
   const validEdges = edges.filter(edge => 
@@ -174,7 +185,7 @@ export const prepareWorkflowData = (
   console.log(`[WorkflowDataHandler] 筛选后有效边: ${validEdges.length}/${edges.length}`);
   
   // 清理节点数据，确保序列化不会出问题
-  const cleanedNodes = validNodes.map(node => ({
+  const finalNodes = cleanedNodes.map(node => ({
     ...node,
     // 移除可能导致循环引用的属性
     selected: undefined,
@@ -191,25 +202,25 @@ export const prepareWorkflowData = (
   }));
   
   // 清理边数据
-  const cleanedEdges = validEdges.map(edge => ({
+  const finalEdges = validEdges.map(edge => ({
     ...edge,
     selected: undefined,
     hidden: undefined
   }));
   
-  // 准备保存数据
+  // 准备保存数据，不包含description字段(由起点卡负责)
   const data: CreateWorkflowParams = {
     name,
-    description,
     isActive,
     metadata: {
-      nodes: JSON.stringify(cleanedNodes),
-      edges: JSON.stringify(cleanedEdges),
+      nodes: JSON.stringify(finalNodes),
+      edges: JSON.stringify(finalEdges),
       version: workflow?.metadata?.version || 1,
       updatedAt: new Date().toISOString()
     }
   };
   
   console.log('[WorkflowDataHandler] 准备发送的数据:', data);
+  console.log('[WorkflowDataHandler] 节点数据序列化长度:', data.metadata.nodes.length);
   return data;
 };

@@ -1,8 +1,8 @@
 # 变量标识符解析规范
 
-**版本号**: v1.1.0  
+**版本号**: v1.2.0  
 **创建时间**: 2025年3月23日  
-**最后更新**: 2025年3月23日 13:35  
+**最后更新**: 2025年3月30日 16:02  
 **文档状态**: 已定稿  
 **关键词**: 变量标识符, 解析, 系统标识符, 显示标识符
 
@@ -76,7 +76,7 @@ Netsphere平台中的变量标识符有两种格式：
 
 1. **系统标识符模式**：
    ```regex
-   /@gv_([a-zA-Z0-9\-]+)_([a-zA-Z0-9_]+)/g
+   /@gv_([a-zA-Z0-9\-]+)_([a-zA-Z0-9_]+)\b/g
    ```
    
 2. **显示标识符模式**：
@@ -168,6 +168,14 @@ Netsphere平台中的变量标识符有两种格式：
 3. 提供标准化的变量查询接口
 4. 处理错误和异常情况
 
+### 精确匹配策略
+
+为了确保变量标识符的精确匹配，所有正则表达式模式必须：
+
+1. 使用词边界标记（`\b`）确保匹配完整的标识符
+2. 避免部分匹配导致的混淆问题，特别是在字段名相似的情况下
+3. 确保系统级和客户端级正则表达式保持一致
+
 ## 代码示例
 
 ### TypeScript解析示例
@@ -200,7 +208,8 @@ async function parseVariables(text: string): Promise<string> {
  * @param cache 变量缓存
  */
 async function parseSystemIdentifiers(text: string, cache: Record<string, string>): Promise<string> {
-  const systemIdPattern = /@gv_([a-zA-Z0-9\-]+)_([a-zA-Z0-9_]+)/g;
+  // 使用词边界确保匹配完整的标识符，避免部分匹配导致的问题
+  const systemIdPattern = /@gv_([a-zA-Z0-9\-]+)_([a-zA-Z0-9_]+)\b/g;
   
   return text.replace(systemIdPattern, async (match, uuid, field) => {
     // 检查缓存
@@ -244,6 +253,17 @@ async function parseSystemIdentifiers(text: string, cache: Record<string, string
 1. 在UI中统一使用显示标识符，便于用户理解和使用
 2. 在API和内部处理中使用系统标识符，确保稳定性
 3. 确保变量选择器和编辑器组件使用统一的标识符格式
+
+## 版本更新记录
+
+### v1.2.0 (2025-03-30)
+- 系统标识符的正则表达式添加了词边界限制 `\b`，避免部分匹配导致的问题
+- 在客户端和服务端统一使用相同的匹配模式，确保一致性
+- 添加了精确匹配策略指南
+- 更新了代码示例以反映最新的匹配规则
+
+### v1.1.0 (2025-03-23)
+- 首次发布
 
 ## 相关文档
 

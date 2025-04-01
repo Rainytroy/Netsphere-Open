@@ -7,13 +7,15 @@ import VariableSchemaService from './VariableSchemaService';
 export class IdentifierFormatterService {
   /**
    * 生成系统标识符
-   * 格式: @gv_{UUID}_{field}
+   * 格式: @gv_{UUID}_{field}-=
    * @param id 变量ID (UUID)
    * @param field 字段名
    * @returns 系统标识符
    */
   static formatIdentifier(id: string, field: string): string {
-    return `@gv_${id}_${field}`;
+    // 清理字段名中可能存在的结束标记
+    const cleanField = field.endsWith('-=') ? field.substring(0, field.length - 2) : field;
+    return `@gv_${id}_${cleanField}-=`;
   }
 
   /**
@@ -35,23 +37,42 @@ export class IdentifierFormatterService {
    * @returns 解析后的组成部分，解析失败返回null
    */
   static parseIdentifier(identifier: string): { id: string; field: string } | null {
+    // 移除@前缀
     const identifierWithoutPrefix = identifier.startsWith('@') ? identifier.substring(1) : identifier;
     
+    // 先移除v3.0格式的-=后缀
+    const normalizedIdentifier = identifierWithoutPrefix.endsWith('-=') 
+      ? identifierWithoutPrefix.substring(0, identifierWithoutPrefix.length - 2) 
+      : identifierWithoutPrefix;
+    
+    console.log(`[IdentifierFormatterService] 解析标识符: ${identifier} -> 规范化后: ${normalizedIdentifier}`);
+    
+    // 尝试匹配v3.0格式: gv_type_UUID_field 或 gv_UUID_field
+    const v3FormatRegex = /^gv_(?:([a-zA-Z0-9]+)_)?([a-zA-Z0-9\-]+)_([a-zA-Z0-9_]+)$/;
+    const v3Match = normalizedIdentifier.match(v3FormatRegex);
+    
+    if (v3Match) {
+      // v3Match[1]是可选的type
+      // v3Match[2]是UUID
+      // v3Match[3]是field
+      const id = v3Match[2];
+      const field = v3Match[3];
+      
+      console.log(`[IdentifierFormatterService] 使用v3.0正则匹配成功: id=${id}, field=${field}`);
+      
+      return {
+        id: id,
+        field: field
+      };
+    }
+    
+    // 尝试匹配旧的格式
     // 尝试匹配标准格式: gv_UUID_field
-    const standardMatch = identifierWithoutPrefix.match(/^gv_([^_]+)_([^_]+)$/);
+    const standardMatch = normalizedIdentifier.match(/^gv_([^_]+)_([^_]+)$/);
     if (standardMatch) {
       return {
         id: standardMatch[1],
         field: standardMatch[2]
-      };
-    }
-    
-    // 尝试匹配非标准格式: gv_type_UUID_field 或 gv_UUID_field_fieldLocalized
-    const nonStandardMatch = identifierWithoutPrefix.match(/^gv_(?:(?:npc|task|workflow|custom|file|system)_)?([^_]+)(?:_[^_]+)?_([^_]+)$/);
-    if (nonStandardMatch) {
-      return {
-        id: nonStandardMatch[1],
-        field: nonStandardMatch[2]
       };
     }
     

@@ -4,6 +4,7 @@ import { WorkflowNode } from "../models/WorkflowNode";
 import { WorkflowConnection } from "../models/WorkflowConnection";
 import { WorkflowExecution, ExecutionStatus } from "../models/WorkflowExecution";
 import { WorkflowVariableSourceProvider } from "./WorkflowVariableSourceProvider";
+import { workflowVariableService } from "./WorkflowVariableService";
 
 /**
  * 工作流服务类
@@ -123,7 +124,24 @@ export class WorkflowService {
     };
 
     // 保存工作流
-    return await workflowRepository.save(workflow);
+    const savedWorkflow = await workflowRepository.save(workflow);
+    
+    try {
+      // 工作流创建后，立即初始化其基本变量
+      // 这确保变量标识符一致性，避免孤儿变量
+      console.log(`[WorkflowService] 初始化工作流 ${savedWorkflow.id} 的基本变量`);
+      await workflowVariableService.initWorkflowBaseVariables(
+        savedWorkflow.id,
+        savedWorkflow.name,
+        savedWorkflow.description,
+        savedWorkflow.isActive
+      );
+    } catch (error) {
+      // 变量初始化失败不应影响工作流创建
+      console.error(`[WorkflowService] 初始化工作流变量失败:`, error);
+    }
+
+    return savedWorkflow;
   }
 
   /**
@@ -188,14 +206,23 @@ export class WorkflowService {
     await connectionRepository.delete({ workflowId: id });
     await nodeRepository.delete({ workflowId: id });
     
-    // 删除工作流相关的变量
-    const workflowVariableProvider = new WorkflowVariableSourceProvider();
+    // 删除相关数据
     try {
-      const deletedCount = await workflowVariableProvider.deleteWorkflowVariables(id, workflowName);
-      console.log(`删除了 ${deletedCount} 个与工作流(ID: ${id})相关的变量`);
-    } catch (variableError) {
-      console.error(`删除工作流(ID: ${id})变量失败:`, variableError);
-      // 继续删除工作流，不因变量删除失败而中断
+      console.log(`开始清理工作流(ID: ${id})相关数据`);
+      
+      // 删除工作流关联的变量
+      try {
+        console.log(`[WorkflowService] 删除工作流 ${id} 的所有变量`);
+        await workflowVariableService.deleteWorkflowVariables(id);
+      } catch (varError) {
+        console.error(`[WorkflowService] 删除工作流变量失败:`, varError);
+        // 继续删除其他相关数据，不因变量删除失败而中断
+      }
+      
+      // 如果有其他相关数据需要清理，可以在这里添加
+    } catch (cleanupError) {
+      console.error(`清理工作流(ID: ${id})数据失败:`, cleanupError);
+      // 继续删除工作流，不因清理失败而中断
     }
 
     // 删除工作流
@@ -276,6 +303,21 @@ export class WorkflowService {
       newConnection.config = { ...connection.config };
 
       await connectionRepository.save(newConnection);
+    }
+    
+    try {
+      // 复制工作流后，也需要初始化其基本变量
+      // 这确保变量标识符一致性，避免孤儿变量
+      console.log(`[WorkflowService] 初始化复制的工作流 ${savedWorkflow.id} 的基本变量`);
+      await workflowVariableService.initWorkflowBaseVariables(
+        savedWorkflow.id,
+        savedWorkflow.name,
+        savedWorkflow.description,
+        savedWorkflow.isActive
+      );
+    } catch (error) {
+      // 变量初始化失败不应影响工作流复制
+      console.error(`[WorkflowService] 初始化复制的工作流变量失败:`, error);
     }
 
     return savedWorkflow;

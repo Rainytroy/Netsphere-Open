@@ -46,9 +46,29 @@ export class ContentFormatManager {
           
           // 检查是否是变量标签
           if (element.hasAttribute('data-variable')) {
-            // 获取系统标识符或生成一个
-            const identifier = element.getAttribute('data-identifier') ||
-                              `@gv_${element.getAttribute('data-id')}_${element.getAttribute('data-field')}`;
+            // 优先使用data-identifier属性
+            let identifier = element.getAttribute('data-identifier');
+            
+            // 如果没有identifier或格式不正确，则根据v3.0格式生成
+            if (!identifier || !identifier.endsWith('-=')) {
+              const type = element.getAttribute('data-type') || 'custom';
+              const id = element.getAttribute('data-id') || 'unknown';
+              const field = element.getAttribute('data-field') || 'unknown';
+              
+              // 检查id是否已经是复合ID格式 (type_entityId_field)
+              let entityId = id;
+              if (id && id.includes('_')) {
+                const idParts = id.split('_');
+                if (idParts.length >= 3) {
+                  // 只取中间部分作为实体ID
+                  entityId = idParts.slice(1, -1).join('_');
+                }
+              }
+              
+              // 生成v3.0格式的标识符
+              identifier = `@gv_${type}_${entityId}_${field}-=`;
+              console.log('[v3.0 ContentFormatManager] 生成标识符:', identifier);
+            }
             
             // 使用系统标识符表示变量
             result += identifier + ' ';
@@ -229,15 +249,16 @@ export class ContentFormatManager {
       const lines = text.split(/\r?\n\r?\n/);
       const result: string[] = [];
       
-      // 识别系统标识符的正则表达式
-      const sysIdRegex = /@gv_([a-zA-Z0-9-]+)_([a-zA-Z0-9_]+)/g;
+      // 识别v3.0系统标识符的正则表达式 - 格式: @gv_{type}_{entityId}_{fieldname}-=
+      const sysIdRegex = /@gv_([a-zA-Z0-9]+)_([a-zA-Z0-9-]+)_([a-zA-Z0-9_]+)-=/g;
       
       // 处理每一行文本
       lines.forEach(line => {
         // 查找并替换系统标识符
-        let processedLine = line.replace(sysIdRegex, (match, id, field) => {
+        let processedLine = line.replace(sysIdRegex, (match) => {
           // 解析标识符
           const parsedId = variableNodeEngine.parseIdentifier(match);
+          console.log('[v3.0 ContentFormatManager] 解析标识符:', match, parsedId);
           
           if (parsedId && parsedId.id) {
             // 构建变量属性
@@ -245,7 +266,8 @@ export class ContentFormatManager {
               id: parsedId.id,
               field: parsedId.field || 'unknown',
               sourceName: 'Unknown', // 无法从标识符获取
-              sourceType: 'system'    // 无法从标识符获取
+              sourceType: parsedId.type || 'custom',
+              type: parsedId.type // 添加type属性，支持v3.0格式
             });
             
             // 生成HTML

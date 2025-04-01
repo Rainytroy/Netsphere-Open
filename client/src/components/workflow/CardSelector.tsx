@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Card, Tabs, List, Badge, Typography } from 'antd';
-import { DragOutlined } from '@ant-design/icons';
+import { Card, Tabs, List, Badge, Typography, Button } from 'antd';
+import { DragOutlined, MenuFoldOutlined } from '@ant-design/icons';
 import type { TabsProps } from 'antd';
 
 const { Text } = Typography;
@@ -62,6 +62,7 @@ interface CardSelectorProps {
   processCards?: CardData[];
   taskCards?: CardData[];
   onCardSelect: (card: CardData) => void;
+  onCollapse?: () => void; // 新增收起回调
 }
 
 /**
@@ -71,13 +72,21 @@ interface CardSelectorProps {
 const CardSelector: React.FC<CardSelectorProps> = ({
   processCards = defaultProcessCards,
   taskCards = [],
-  onCardSelect
+  onCardSelect,
+  onCollapse
 }) => {
   const [activeTab, setActiveTab] = useState<string>('process');
 
   // 处理卡片选择
   const handleCardSelect = (card: CardData) => {
     onCardSelect(card);
+  };
+  
+  // 处理收起
+  const handleCollapse = () => {
+    if (onCollapse) {
+      onCollapse();
+    }
   };
 
   // 标签页配置
@@ -89,37 +98,48 @@ const CardSelector: React.FC<CardSelectorProps> = ({
         <List
           dataSource={processCards}
           split={false}
-          renderItem={(card) => (
-            <List.Item
-              key={card.id}
-              style={{ cursor: 'move' }}
-              onClick={() => handleCardSelect(card)}
-              draggable
-              onDragStart={(e) => {
-                e.dataTransfer.setData('application/reactflow', JSON.stringify(card));
-                e.dataTransfer.effectAllowed = 'move';
-              }}
-            >
-              <Card 
-                hoverable 
-                style={{ width: '100%' }}
-                bodyStyle={{ padding: '12px' }}
+          renderItem={(card) => {
+            // 检查起点卡是否已经存在
+            const isStartCard = card.id === 'start';
+            const isDisabled = isStartCard && card.usageCount >= 1;
+            
+            return (
+              <List.Item
+                key={card.id}
+                style={{ 
+                  cursor: isDisabled ? 'not-allowed' : 'move',
+                  opacity: isDisabled ? 0.6 : 1 
+                }}
+                onClick={() => !isDisabled && handleCardSelect(card)}
+                draggable={!isDisabled}
+                onDragStart={(e) => {
+                  if (!isDisabled) {
+                    e.dataTransfer.setData('application/reactflow', JSON.stringify(card));
+                    e.dataTransfer.effectAllowed = 'move';
+                  }
+                }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center' }}>
-                      <DragOutlined style={{ marginRight: 8 }} />
-                      <Text strong>{card.title}</Text>
+                <Card 
+                  hoverable={!isDisabled}
+                  style={{ width: '100%' }}
+                  bodyStyle={{ padding: '12px' }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center' }}>
+                        <DragOutlined style={{ marginRight: 8 }} />
+                        <Text strong>{card.title}</Text>
+                      </div>
+                      <Text type="secondary" style={{ fontSize: '12px' }}>{card.description}</Text>
                     </div>
-                    <Text type="secondary" style={{ fontSize: '12px' }}>{card.description}</Text>
+                    {card.usageCount > 0 && (
+                      <Badge count={card.usageCount} color="#001529" />
+                    )}
                   </div>
-                  {card.usageCount > 0 && (
-                    <Badge count={card.usageCount} color="#001529" />
-                  )}
-                </div>
-              </Card>
-            </List.Item>
-          )}
+                </Card>
+              </List.Item>
+            );
+          }}
         />
       ),
     },
@@ -169,6 +189,15 @@ const CardSelector: React.FC<CardSelectorProps> = ({
 
   return (
     <div className="card-selector">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 16px 8px' }}>
+        <div style={{ fontSize: '16px', fontWeight: 'bold' }}>卡片选择</div>
+        <Button 
+          type="text" 
+          icon={<MenuFoldOutlined />} 
+          onClick={handleCollapse} 
+          title="收起面板"
+        />
+      </div>
       <Tabs 
         activeKey={activeTab}
         items={tabItems}

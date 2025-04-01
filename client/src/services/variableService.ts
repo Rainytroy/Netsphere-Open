@@ -181,4 +181,7 @@ export interface Variable {
   value: string;
   createdAt: Date;
   updatedAt: Date;
+  fieldname?: string; // 变量字段名称，用于UI显示
+  entityId?: string; // 关联实体ID
+  isValid?: boolean; // 变量是否有效
 }

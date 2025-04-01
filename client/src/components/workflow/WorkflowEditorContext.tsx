@@ -2,10 +2,17 @@ import React, { createContext, useState, useContext, useCallback, useEffect } fr
 import { Node, Edge } from 'reactflow';
 import { message } from 'antd';
 import workTaskService from '../../services/workTaskService';
-import { CreateWorkflowParams, Workflow } from '../../services/workflowService';
+import { CreateWorkflowParams, Workflow, SaveWorkflowPhase, SaveWorkflowOptions } from '../../services/workflowService';
 import { CardData, CardType } from './CardSelector';
 import { defaultProcessCards } from './defaultCards';
 import { loadWorkflowData, calculateNodeCounts, prepareWorkflowData } from './WorkflowDataHandler';
+
+// 卡片面板显示模式
+export enum CardPanelMode {
+  HIDDEN = 'hidden',    // 完全隐藏
+  MINIMIZED = 'minimized', // 最小化（只显示按钮）
+  EXPANDED = 'expanded'  // 完全展开
+}
 
 // 上下文类型定义
 interface WorkflowEditorContextType {
@@ -15,10 +22,13 @@ interface WorkflowEditorContextType {
   isActive: boolean;
   isEditingName: boolean;
   cardPanelVisible: boolean;
+  cardPanelMode: CardPanelMode; // 新增：卡片面板模式
   nodes: Node[];
   edges: Edge[];
   selectedCardCounts: Record<string, number>;
   taskCards: CardData[];
+  savePhase: SaveWorkflowPhase; // 添加：保存阶段状态
+  saveMessage: string; // 添加：保存消息
   
   // 设置状态的函数
   setName: (name: string) => void;
@@ -26,13 +36,14 @@ interface WorkflowEditorContextType {
   setIsActive: (isActive: boolean) => void;
   setIsEditingName: (isEditing: boolean) => void;
   toggleCardPanel: () => void;
+  setCardPanelMode: (mode: CardPanelMode) => void; // 新增：设置卡片面板模式
   
   // 处理函数
   handleNodesChange: (updatedNodes: Node[]) => void;
   handleEdgesChange: (updatedEdges: Edge[]) => void;
   handleCardSelect: (card: CardData) => void;
   prepareFormData: () => CreateWorkflowParams;
-  saveWorkflow: () => Promise<void>; // 新增：保存工作流方法
+  saveWorkflow: () => Promise<void>; // 保存工作流方法
 }
 
 // 创建上下文
@@ -60,6 +71,11 @@ export const WorkflowEditorProvider: React.FC<WorkflowEditorProviderProps> = ({
   const [isActive, setIsActive] = useState<boolean>(workflow?.isActive || false);
   const [isEditingName, setIsEditingName] = useState<boolean>(false);
   const [cardPanelVisible, setCardPanelVisible] = useState<boolean>(true);
+  const [cardPanelMode, setCardPanelMode] = useState<CardPanelMode>(CardPanelMode.EXPANDED);
+  
+  // 保存状态
+  const [savePhase, setSavePhase] = useState<SaveWorkflowPhase>(SaveWorkflowPhase.IDLE);
+  const [saveMessage, setSaveMessage] = useState<string>('');
   
   // 画布状态
   const [nodes, setNodes] = useState<Node[]>([]);
@@ -95,7 +111,7 @@ export const WorkflowEditorProvider: React.FC<WorkflowEditorProviderProps> = ({
         // 转换为CardData格式
         const taskCards = tasks.map(task => ({
           id: task.id,
-          type: CardType.TASK,
+          type: CardType.TASK, // 指定类型为任务卡
           title: task.name,
           description: task.input || '无描述',
           usageCount: 0 // 初始使用计数为0
@@ -130,6 +146,29 @@ export const WorkflowEditorProvider: React.FC<WorkflowEditorProviderProps> = ({
   const handleEdgesChange = useCallback((updatedEdges: Edge[]) => {
     setEdges(updatedEdges);
   }, []);
+  
+  // 准备表单数据 - 不再传递description参数，由起点卡负责
+  const prepareFormData = useCallback(() => {
+    // 添加更多日志来确认保存前的状态
+    console.log('[WorkflowEditorContext] prepareFormData 前状态 - 节点数量:', nodes.length);
+    console.log('[WorkflowEditorContext] 节点数据预览:', nodes.map(n => ({id: n.id, type: n.type})));
+    
+    const data = prepareWorkflowData(name, isActive, nodes, edges, workflow);
+    
+    // 如果有现有工作流，确保ID被包含在返回数据中
+    if (workflow?.id) {
+      return {
+        ...data,
+        id: workflow.id // 确保ID被传递
+      };
+    }
+    
+    return data;
+  }, [name, description, isActive, nodes, edges, workflow]);
+  
+  // 移除自动创建起点卡和自动保存的功能
+  // 用户现在需要手动添加起点卡
+  // 注释: 原来的代码在这里自动创建起点卡并保存，现已移除
   
   // 处理卡片选择 - 优化以确保与拖放功能一致
   const handleCardSelect = useCallback((card: CardData) => {
@@ -200,11 +239,9 @@ export const WorkflowEditorProvider: React.FC<WorkflowEditorProviderProps> = ({
         [card.id]: (prev[card.id] || 0) + 1
       }));
       
-      // 关键修改：在函数内部使用updatedNodes并设置更短的延迟时间
-      setTimeout(() => {
-        console.log('[WorkflowEditorContext] 通知节点变化');
-        handleNodesChange(updatedNodes);
-      }, 10);
+      // 关键修改：直接调用handleNodesChange，不使用setTimeout
+      console.log('[WorkflowEditorContext] 通知节点变化');
+      handleNodesChange(updatedNodes);
       
       return updatedNodes;
     });
@@ -212,19 +249,19 @@ export const WorkflowEditorProvider: React.FC<WorkflowEditorProviderProps> = ({
     message.success(`已添加 ${card.title} 到画布中心`);
   }, [cardPanelVisible, handleNodesChange]);
   
-  // 准备表单数据
-  const prepareFormData = useCallback(() => {
-    return prepareWorkflowData(name, description, isActive, nodes, edges, workflow);
-  }, [name, description, isActive, nodes, edges, workflow]);
-  
-  // 保存工作流 - 移除成功提示以避免重复
+  // 保存工作流 - 简化为直接保存，无状态变化
   const saveWorkflow = useCallback(async () => {
     try {
-      console.log('[WorkflowEditorContext] 保存工作流');
+      console.log('[WorkflowEditorContext] 开始保存工作流');
+      
+      // 准备数据
       const data = prepareFormData();
+      
+      // 直接保存，不设置状态
       await onSave(data);
-      // 移除成功提示，由调用者处理
-      // message.success('工作流保存成功');
+      
+      // 保存成功显示提示
+      message.success('保存成功');
     } catch (error) {
       console.error('[WorkflowEditorContext] 保存工作流失败:', error);
       message.error('保存失败，请重试');
@@ -239,10 +276,13 @@ export const WorkflowEditorProvider: React.FC<WorkflowEditorProviderProps> = ({
     isActive,
     isEditingName,
     cardPanelVisible,
+    cardPanelMode,
     nodes,
     edges,
     selectedCardCounts,
     taskCards,
+    savePhase,
+    saveMessage,
     
     // 设置函数
     setName,
@@ -250,6 +290,7 @@ export const WorkflowEditorProvider: React.FC<WorkflowEditorProviderProps> = ({
     setIsActive,
     setIsEditingName,
     toggleCardPanel,
+    setCardPanelMode,
     
     // 处理函数
     handleNodesChange,

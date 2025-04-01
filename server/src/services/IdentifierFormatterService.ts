@@ -21,11 +21,12 @@ export class IdentifierFormatterService {
   
   /**
    * 根据源类型、源名称、字段和源ID生成新格式的全局变量标识符
+   * 此方法基于formatDatabaseId生成，确保标识符与数据库ID一致
    * @param sourceType 源类型
    * @param sourceName 源名称
    * @param field 字段名
    * @param sourceId 源ID (必需)
-   * @returns 格式化的标识符
+   * @returns 格式化的标识符，格式： @gv_{type}_{entityId}_{field}-=
    */
   public formatIdentifier(sourceType: string, sourceName: string, field: string, sourceId: string): string {
     // 确保提供了sourceId
@@ -33,9 +34,32 @@ export class IdentifierFormatterService {
       throw new Error('sourceId是必需的参数，不能为空');
     }
     
-    // 创建新的全局变量标识符格式 @gv_UUID_field
-    // 使用全局变量前缀 gv_ 加上源ID和字段名
-    return `@gv_${sourceId}_${field}`;
+    // 首先获取标准的数据库ID
+    const dbId = this.formatDatabaseId(sourceType, sourceId, field);
+    
+    // 基于数据库ID构造系统标识符
+    const identifier = `@gv_${dbId}-=`;
+    
+    console.log(`[IdentifierFormatterService] 生成系统标识符: ${identifier} (基于dbId: ${dbId})`);
+    return identifier;
+  }
+  
+  /**
+   * 从系统标识符中提取数据库ID
+   * @param identifier 系统标识符，格式：@gv_{type}_{entityId}_{field}-=
+   * @returns 提取的数据库ID
+   */
+  public extractDatabaseIdFromIdentifier(identifier: string): string {
+    // 检查是否是v3.0格式的全局变量标识符
+    const v3FormatRegex = /^@gv_(.+)-=$/;
+    const v3Match = identifier.match(v3FormatRegex);
+    
+    if (!v3Match) {
+      throw new Error(`无效的系统标识符格式: ${identifier}`);
+    }
+    
+    // 提取并返回数据库ID部分
+    return v3Match[1];
   }
   
   /**
@@ -73,7 +97,73 @@ export class IdentifierFormatterService {
   }
   
   /**
+   * 生成变量的数据库ID - 系统核心方法
+   * 变量ID是系统的基础，格式为: type_entityId_fieldname
+   * 系统标识符和显示标识符都基于此ID生成
+   * @param sourceType 源类型，如'npc', 'task', 'custom'等
+   * @param sourceId 源ID，通常是UUID或时间戳
+   * @param field 字段名，描述变量的具体属性
+   * @returns 格式化的数据库ID
+   */
+  public formatDatabaseId(sourceType: string, sourceId: string, field: string): string {
+    // 验证参数
+    if (!sourceType) {
+      throw new Error('sourceType是必需的参数，不能为空');
+    }
+    
+    if (!sourceId) {
+      throw new Error('sourceId是必需的参数，不能为空');
+    }
+    
+    if (!field) {
+      throw new Error('field是必需的参数，不能为空');
+    }
+    
+    // 标准化参数
+    const normalizedType = sourceType.toLowerCase().trim();
+    let normalizedField = field.trim();
+    
+    // 检查并清除字段名中可能存在的结束标记
+    if (normalizedField.endsWith('-=')) {
+      console.warn(`Field "${field}" contains end marker "-=", removing it`);
+      normalizedField = normalizedField.substring(0, normalizedField.length - 2);
+    }
+    
+    // 生成并返回数据库ID
+    const dbId = `${normalizedType}_${sourceId}_${normalizedField}`;
+    
+    console.log(`[IdentifierFormatterService] 生成数据库ID: ${dbId}`);
+    return dbId;
+  }
+  
+  /**
+   * 从数据库ID解析出组成部分
+   * @param dbId 数据库ID字符串
+   * @returns 解析后的组成部分
+   */
+  public parseDatabaseId(dbId: string): { 
+    sourceType: string, 
+    sourceId: string, 
+    field: string 
+  } {
+    // 使用正则表达式解析ID
+    const pattern = /^([a-zA-Z0-9]+)_([a-zA-Z0-9-]+)_([a-zA-Z0-9_]+)$/;
+    const match = dbId.match(pattern);
+    
+    if (!match) {
+      throw new Error(`无效的数据库ID格式: ${dbId}`);
+    }
+    
+    return {
+      sourceType: match[1],
+      sourceId: match[2],
+      field: match[3]
+    };
+  }
+
+  /**
    * 解析标识符获取组成部分
+   * 首先尝试使用更高效的提取和解析方法，如果失败则回退到常规解析
    * @param identifier 标识符
    * @returns 解析后的标识符组成部分
    */
@@ -91,14 +181,37 @@ export class IdentifierFormatterService {
       sourceId: null as string | null
     };
     
-    // 检查是否是新格式的全局变量标识符 @gv_UUID_field
-    const newFormatRegex = /^@gv_([a-zA-Z0-9-]+)_([a-zA-Z0-9_]+)$/;
-    const newFormatMatch = identifier.match(newFormatRegex);
+    // 检查是否是v3.0格式的全局变量标识符 @gv_{type}_{entityId}_{field}-=
+    if (identifier.startsWith('@gv_') && identifier.endsWith('-=')) {
+      try {
+        // 提取数据库ID
+        const dbId = this.extractDatabaseIdFromIdentifier(identifier);
+        
+        // 解析数据库ID
+        const parsedDbId = this.parseDatabaseId(dbId);
+        
+        // 设置结果
+        result.sourceType = parsedDbId.sourceType;
+        result.sourceId = parsedDbId.sourceId;
+        result.field = parsedDbId.field;
+        
+        console.log(`[IdentifierFormatterService] 解析v3.0标识符 ${identifier} -> type=${result.sourceType}, entityId=${result.sourceId}, field=${result.field}`);
+        
+        return result;
+      } catch (error) {
+        // 如果解析失败，继续尝试其他格式
+        console.warn(`[IdentifierFormatterService] 无法以v3.0格式解析标识符 ${identifier}, 尝试其他格式...`);
+      }
+    }
     
-    if (newFormatMatch) {
-      // 如果是新格式，设置sourceId和field
-      result.sourceId = newFormatMatch[1];
-      result.field = newFormatMatch[2];
+    // 兼容v2.x格式的全局变量标识符 @gv_UUID_field
+    const v2FormatRegex = /^@gv_([a-zA-Z0-9-]+)_([a-zA-Z0-9_]+)$/;
+    const v2FormatMatch = identifier.match(v2FormatRegex);
+    
+    if (v2FormatMatch) {
+      // 如果是v2.x格式，设置sourceId和field
+      result.sourceId = v2FormatMatch[1];
+      result.field = v2FormatMatch[2];
       return result;
     }
     

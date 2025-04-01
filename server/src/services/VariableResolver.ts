@@ -36,22 +36,51 @@ export class VariableResolver {
   }
   
   /**
-   * 解析系统标识符格式 @gv_UUID_field
+   * 解析系统标识符格式 
+   * 支持v3.0: @gv_{type}_{entityId}_{field}-=
+   * 支持v2.x: @gv_UUID_field
    */
   private async resolveSystemIdentifiers(text: string): Promise<string> {
-    // 匹配系统标识符 @gv_UUID_field
-    const systemIdPattern = /@gv_([a-zA-Z0-9\-]+)_([a-zA-Z0-9_]+)/g;
+    // 匹配v3.0系统标识符 @gv_{type}_{entityId}_{field}-=
+    const v3Pattern = /@gv_([a-zA-Z0-9_-]+)_([a-zA-Z0-9\-]+)_([a-zA-Z0-9_-]+)-=/g;
     
-    // 查找所有系统标识符
-    const matches = Array.from(text.matchAll(systemIdPattern));
-    if (matches.length === 0) {
-      return text; // 没有系统标识符，直接返回原文本
-    }
+    // 匹配v2.x系统标识符 @gv_UUID_field
+    const v2Pattern = /@gv_([a-zA-Z0-9\-]+)_([a-zA-Z0-9_]+)\b/g;
     
-    // 替换所有系统标识符
+    // 查找并替换所有v3.0系统标识符
     let resolvedText = text;
     
-    for (const match of matches) {
+    // 处理v3.0格式标识符
+    const v3Matches = Array.from(text.matchAll(v3Pattern));
+    for (const match of v3Matches) {
+      const [fullMatch, type, entityId, field] = match;
+      
+      try {
+        console.log(`[v3.0] 解析v3.0系统标识符: ${fullMatch}, 类型=${type}, 实体ID=${entityId}, 字段=${field}`);
+        
+        // 根据类型、实体ID和字段获取变量值
+        let value;
+        
+        // 目前支持的类型：npc, workflow, task, custom等
+        // 这里我们使用通用的变量解析方法，让适配器根据类型和ID决定如何获取
+        value = await this.variableAdapter.getVariableValueByTypeAndId(type, entityId, field);
+        
+        if (value !== undefined) {
+          // 替换系统标识符为实际值
+          resolvedText = resolvedText.replace(fullMatch, this.convertValueToString(value));
+          console.log(`[v3.0] 成功解析变量: ${fullMatch} => ${this.convertValueToString(value)}`);
+        } else {
+          console.warn(`[v3.0] 变量值未找到: ${fullMatch}`);
+        }
+      } catch (error) {
+        console.error(`[v3.0] 解析v3.0系统标识符 ${fullMatch} 失败:`, error);
+        // 保留原变量引用，不替换
+      }
+    }
+    
+    // 处理v2.x格式标识符
+    const v2Matches = Array.from(resolvedText.matchAll(v2Pattern));
+    for (const match of v2Matches) {
       const [fullMatch, uuid, field] = match;
       
       try {
@@ -63,7 +92,7 @@ export class VariableResolver {
           resolvedText = resolvedText.replace(fullMatch, this.convertValueToString(value));
         }
       } catch (error) {
-        console.error(`解析系统标识符 ${fullMatch} 失败:`, error);
+        console.error(`解析v2.x系统标识符 ${fullMatch} 失败:`, error);
         // 保留原变量引用，不替换
       }
     }
@@ -196,7 +225,15 @@ export class VariableResolver {
       return false;
     }
     
-    const variablePattern = /@([^.]+)\.([^\s.,;:!?()[\]{}'"#]+)(?:#([a-zA-Z0-9]+))?/;
-    return variablePattern.test(text);
+    // 检查显示标识符格式
+    const displayPattern = /@([^.]+)\.([^\s.,;:!?()[\]{}'"#]+)(?:#([a-zA-Z0-9]+))?/;
+    
+    // 检查v3.0系统标识符格式
+    const v3Pattern = /@gv_([a-zA-Z0-9_-]+)_([a-zA-Z0-9\-]+)_([a-zA-Z0-9_-]+)-=/;
+    
+    // 检查v2.x系统标识符格式
+    const v2Pattern = /@gv_([a-zA-Z0-9\-]+)_([a-zA-Z0-9_]+)\b/;
+    
+    return displayPattern.test(text) || v3Pattern.test(text) || v2Pattern.test(text);
   }
 }

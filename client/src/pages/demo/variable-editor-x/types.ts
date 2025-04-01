@@ -10,7 +10,11 @@ export interface VariableData {
   value?: string;        // 变量值
   displayIdentifier?: string; // 用于显示的友好标识符，如 @sourceName.field#id
   
-  // 生成的完整标识符 @gv_UUID_field
+  // v3.0新增: 类型属性，对应sourceType，提供方便的类型访问
+  // 如果直接使用，则与sourceType相同
+  get type(): string;
+  
+  // 生成的完整标识符 - v3.0格式: @gv_type_UUID_field-=
   get identifier(): string;
 }
 
@@ -60,7 +64,7 @@ export interface VariableEditorXProps {
   style?: React.CSSProperties;
 }
 
-// 实现VariableData接口的类
+// 实现VariableData接口的类 - v3.0版本
 export class VariableDataImpl implements VariableData {
   id: string;
   field: string;
@@ -69,17 +73,38 @@ export class VariableDataImpl implements VariableData {
   value?: string;
   displayIdentifier?: string;
 
-  constructor(data: Omit<VariableData, 'identifier'>) {
+  constructor(data: Omit<VariableData, 'identifier' | 'type'>) {
     this.id = data.id;
     this.field = data.field;
     this.sourceName = data.sourceName;
     this.sourceType = data.sourceType;
     this.value = data.value;
-    this.displayIdentifier = data.displayIdentifier;
+    
+    // 默认生成displayIdentifier，如果未提供
+    if (!data.displayIdentifier) {
+      const shortId = this.id.substring(0, Math.min(4, this.id.length));
+      this.displayIdentifier = `@${this.sourceName}.${this.field}#${shortId}`;
+    } else {
+      this.displayIdentifier = data.displayIdentifier;
+    }
+    
+    // 添加验证日志
+    console.log('[v3.0] 创建VariableData:', {
+      id: this.id.substring(0, 8) + '...',
+      type: this.sourceType,
+      field: this.field,
+      display: this.displayIdentifier
+    });
+  }
+
+  get type(): string {
+    return this.sourceType;
   }
 
   get identifier(): string {
-    return `@gv_${this.id}_${this.field}`;
+    // 返回v3.0格式的标识符
+    const v3Identifier = `@gv_${this.sourceType}_${this.id}_${this.field}-=`;
+    return v3Identifier;
   }
 }
 

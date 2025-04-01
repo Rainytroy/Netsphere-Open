@@ -72,7 +72,8 @@ function App() {
             {ENABLE_WORKFLOW && (
               <>
                 <Route path="/workflow" element={<WorkflowListPage />} />
-                <Route path="/workflow/create" element={<WorkflowCreatePage />} />
+                {/* 创建页直接重定向到列表页，因为我们现在在列表页直接创建 */}
+                <Route path="/workflow/create" element={<WorkflowListPage />} />
                 <Route path="/workflow/:id/edit" element={<WorkflowEditPage />} />
                 <Route path="/workflow/:id/use" element={<WorkflowUsePage />} />
               </>

@@ -3,7 +3,8 @@ import { Input, Card, Typography, Divider, Empty, Descriptions, Tag, Button, Too
 import { SearchOutlined, InfoCircleOutlined, ReloadOutlined } from '@ant-design/icons';
 import { variableService } from '../../services/variableService';
 import VariableEventService from '../../services/VariableEventService';
-import useVariableData, { VariableCommonData } from '../../hooks/useVariableData';
+import useVariableData from '../../hooks/useVariableData';
+import { Variable, VariableType } from '../../services/variableService';
 import VariableThemeService from '../../services/VariableThemeService';
 import IdentifierFormatterService from '../../services/IdentifierFormatterService';
 import VariableSchemaService from '../../services/VariableSchemaService';
@@ -22,7 +23,7 @@ const IdentifierTester: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   
   // 添加直接API获取数据相关状态
-  const [directVariables, setDirectVariables] = useState<VariableCommonData[]>([]);
+  const [directVariables, setDirectVariables] = useState<Variable[]>([]);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [lastRefreshTime, setLastRefreshTime] = useState<number>(0);
   
@@ -54,48 +55,40 @@ const IdentifierTester: React.FC = () => {
     return responseData;
   };
   
-  // 将API数据转换为标准变量格式的纯函数 - 整合VariableSchemaService逻辑
-  const convertToVariableFormat = (apiItem: any): VariableCommonData => {
-    // 提取并规范化基础数据
-    const rawId = apiItem.id || apiItem._id;
-    const rawType = apiItem.sourceType || apiItem.source?.type || apiItem.type || 'unknown';
-    const rawField = apiItem.field || (rawType === 'task' ? 'output' : 'name');
-    const sourceName = rawType === 'custom' 
-      ? (apiItem.name || '自定义变量') 
-      : (apiItem.sourceName || apiItem.source?.name || 'Unknown');
+  // 将API数据转换为标准变量格式的纯函数 - 严格使用API返回的原始数据
+  const convertToVariableFormat = (apiItem: any): Variable => {
+    // 严格记录日志用于调试
+    console.log(`[IdentifierTester] 使用原始变量数据:`, apiItem);
     
-    // 使用服务进行规范化处理
-    const cleanId = cleanVariableId(rawId);
-    const normalizedType = VariableSchemaService.normalizeSourceType(rawType, rawField);
-    const normalizedField = VariableSchemaService.normalizeFieldName(rawField, normalizedType);
+    // 清理字段名中可能的-=后缀
+    let cleanFieldname = apiItem.fieldname || apiItem.field || '';
+    if (cleanFieldname.endsWith('-=')) {
+      console.log(`[IdentifierTester] 移除字段名中的结束标记: ${cleanFieldname} -> ${cleanFieldname.substring(0, cleanFieldname.length - 2)}`);
+      cleanFieldname = cleanFieldname.substring(0, cleanFieldname.length - 2);
+    }
     
-    // 详细日志用于调试
-    console.log(`[IdentifierTester] 变量处理: ID=${cleanId}, 类型=${normalizedType}, 字段=${normalizedField}, 原始字段=${rawField}`);
-    
-    // 使用服务生成标准化标识符
-    const displayIdentifier = apiItem.displayIdentifier || 
-      IdentifierFormatterService.formatDisplayIdentifier(sourceName, normalizedField, cleanId);
-    
-    // 生成系统标识符
-    const identifier = `@gv_${cleanId}_${normalizedField}`;
-    
-    return {
-      id: cleanId,
-      field: normalizedField,
+    // 直接使用API原始数据，最小化转换逻辑
+    const variable = {
+      id: apiItem.id || apiItem._id || '',
       name: apiItem.name || '',
-      sourceName,
-      sourceType: normalizedType,
-      type: normalizedType,
+      type: apiItem.type || 'unknown',
+      source: apiItem.source || {
+        id: apiItem.id || '',
+        name: apiItem.name || '',
+        type: apiItem.type || 'unknown'
+      },
       value: apiItem.value || '',
-      displayIdentifier,
-      identifier,
-      updatedAt: apiItem.updatedAt || new Date().toISOString(),
-      source: {
-        id: apiItem.source?.id || cleanId,
-        name: sourceName,
-        type: normalizedType
-      }
-    } as VariableCommonData;
+      identifier: apiItem.identifier || '',
+      displayIdentifier: apiItem.displayIdentifier || '',
+      fieldname: cleanFieldname, // 使用清理后的字段名
+      createdAt: apiItem.createdAt ? new Date(apiItem.createdAt) : new Date(),
+      updatedAt: apiItem.updatedAt ? new Date(apiItem.updatedAt) : new Date(),
+      entityId: apiItem.entityId || '',
+      isValid: apiItem.isValid !== undefined ? apiItem.isValid : true
+    };
+    
+    console.log(`[IdentifierTester] 转换后的变量:`, variable);
+    return variable;
   };
   
   /**
@@ -132,11 +125,11 @@ const IdentifierTester: React.FC = () => {
   };
   
   // 去重变量数组的纯函数
-  const deduplicateVariables = (variables: VariableCommonData[]): VariableCommonData[] => {
-    const uniqueMap = new Map<string, VariableCommonData>();
+  const deduplicateVariables = (variables: Variable[]): Variable[] => {
+    const uniqueMap = new Map<string, Variable>();
     
     variables.forEach(v => {
-      const key = `${v.id}_${v.field}`;
+      const key = `${v.id}_${v.fieldname}`;
       
       // 如果这个键还不存在，或者当前变量比已存在的更新，则替换
       if (!uniqueMap.has(key) || 
@@ -184,7 +177,7 @@ const IdentifierTester: React.FC = () => {
       }
       
       // 转换为标准变量格式
-      let processedVariables: VariableCommonData[] = [];
+      let processedVariables: Variable[] = [];
       
       if (responseData.length > 0) {
         try {
@@ -223,6 +216,38 @@ const IdentifierTester: React.FC = () => {
     console.log('[IdentifierTester] 组件挂载，初始化获取变量数据');
     fetchDirectFromAPI();
     
+    // 从URL查询参数中获取标识符
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const identifierParam = urlParams.get('identifier');
+      
+      if (identifierParam) {
+        // 先对标识符进行解码，确保特殊字符（如"-="）被正确处理
+        const decodedIdentifier = decodeURIComponent(identifierParam);
+        
+        console.log(`[IdentifierTester] 从URL获取到标识符参数: ${identifierParam}`);
+        console.log(`[IdentifierTester] 解码后的标识符: ${decodedIdentifier}`);
+        
+        // 设置输入框的值 - 使用解码后的标识符
+        setIdentifier(decodedIdentifier);
+        
+        // 设置规范化标识符，处理可能的@前缀
+        const normalizedParam = decodedIdentifier.startsWith('@') 
+          ? decodedIdentifier.substring(1) 
+          : decodedIdentifier;
+        console.log(`[IdentifierTester] 处理@前缀后的标识符: ${normalizedParam}`);
+        setNormalizedIdentifier(normalizedParam);
+        
+        // 延迟搜索，确保变量数据已加载
+        setTimeout(() => {
+          console.log(`[IdentifierTester] 开始自动搜索标识符: ${normalizedParam}`);
+          handleSearch();
+        }, 1000); // 增加等待时间至1秒，确保变量数据完全加载
+      }
+    } catch (error) {
+      console.error('[IdentifierTester] 处理URL参数出错:', error);
+    }
+    
     // 订阅变量变更事件
     const unsubscribe = VariableEventService.subscribe(() => {
       console.log('[IdentifierTester] 收到变量变更通知，强制刷新数据');
@@ -251,7 +276,7 @@ const IdentifierTester: React.FC = () => {
   };
   
   // 查找变量 - 从直接获取的最新数据中查找 - 增强版
-  const findVariableByIdentifier = (identifier: string, variables: VariableCommonData[]): VariableCommonData | null => {
+  const findVariableByIdentifier = (identifier: string, variables: Variable[]): Variable | null => {
     // 处理可能的@前缀
     const normalizedId = identifier.startsWith('@') ? identifier.substring(1) : identifier;
     
@@ -288,15 +313,15 @@ const IdentifierTester: React.FC = () => {
       console.log(`[IdentifierTester] 找到 ${idMatches.length} 个ID匹配的变量`);
       
       // 先尝试精确匹配ID和字段
-      let exactMatch = idMatches.find(v => v.field === requestedField);
+      let exactMatch = idMatches.find(v => v.fieldname === requestedField);
       if (exactMatch) {
-        console.log(`[IdentifierTester] 找到完全匹配的变量: ID=${exactMatch.id}, 字段=${exactMatch.field}`);
+        console.log(`[IdentifierTester] 找到完全匹配的变量: ID=${exactMatch.id}, 字段=${exactMatch.fieldname}`);
         return exactMatch;
       }
       
       // 尝试使用规范化字段名称
       const normalizedField = VariableSchemaService.normalizeFieldName(requestedField, 'task');
-      exactMatch = idMatches.find(v => v.field === normalizedField);
+      exactMatch = idMatches.find(v => v.fieldname === normalizedField);
       if (exactMatch) {
         console.log(`[IdentifierTester] 通过规范化字段找到变量: ${exactMatch.identifier}, 规范化: ${requestedField} => ${normalizedField}`);
         return exactMatch;
@@ -306,19 +331,9 @@ const IdentifierTester: React.FC = () => {
       const baseVariable = idMatches[0]; // 使用第一个ID匹配的变量作为基础
       console.log(`[IdentifierTester] 未找到字段匹配，创建虚拟变量，基于ID=${baseVariable.id}, 使用字段=${requestedField}`);
       
-      // 创建一个新的变量对象，使用相同的ID但更新字段
-      const virtualVariable: VariableCommonData = {
-        ...baseVariable,
-        field: requestedField,
-        identifier: `@gv_${baseVariable.id}_${requestedField}`,
-        displayIdentifier: IdentifierFormatterService.formatDisplayIdentifier(
-          baseVariable.sourceName || baseVariable.name || '未知', 
-          requestedField, 
-          baseVariable.id
-        )
-      };
-      
-      return virtualVariable;
+      // 避免创建虚拟变量，改为记录详细日志并返回null
+      console.log(`[IdentifierTester] 避免创建虚拟变量，返回null以防止数据不一致`);
+      return null;
     }
     
     // 检查是否可能是时间戳ID，如果是则尝试转换为UUID
@@ -344,20 +359,15 @@ const IdentifierTester: React.FC = () => {
           console.log(`[IdentifierTester] 使用转换后的UUID找到 ${idMatchesWithUUID.length} 个匹配变量`);
           
           // 尝试精确匹配字段
-          let exactMatch = idMatchesWithUUID.find(v => v.field === requestedField);
+          let exactMatch = idMatchesWithUUID.find(v => v.fieldname === requestedField);
           if (exactMatch) {
-            console.log(`[IdentifierTester] 使用UUID找到完全匹配的变量: ID=${exactMatch.id}, 字段=${exactMatch.field}`);
+            console.log(`[IdentifierTester] 使用UUID找到完全匹配的变量: ID=${exactMatch.id}, 字段=${exactMatch.fieldname}`);
             return exactMatch;
           }
           
-          // 如果没有精确匹配，使用第一个匹配的变量创建虚拟变量
-          const baseVariable = idMatchesWithUUID[0];
-          return {
-            ...baseVariable,
-            field: requestedField,
-            identifier: `@gv_${uuid}_${requestedField}`,
-            displayIdentifier: `@${baseVariable.sourceName || '测试用'}.${requestedField}#${uuid.substring(0, 4)}`
-          };
+          // 避免创建虚拟变量，返回null
+          console.log(`[IdentifierTester] 使用UUID找到变量，但未找到字段匹配，返回null以防止数据不一致`);
+          return null;
         }
       } catch (error) {
         console.error('[IdentifierTester] 转换时间戳ID失败:', error);
@@ -368,21 +378,22 @@ const IdentifierTester: React.FC = () => {
       
       return {
         id: requestedId,
-        field: requestedField,
+        fieldname: requestedField,
         name: '自定义变量',
-        sourceName: '自定义变量',
-        sourceType: 'custom',
-        type: 'custom',
+        type: 'custom' as VariableType,
         value: requestedField === 'value' ? '(示例值)' : '(示例数据)',
         displayIdentifier: `@自定义变量.${requestedField}#${requestedId.substring(requestedId.length - 4)}`,
         identifier: `@gv_${requestedId}_${requestedField}`,
-        updatedAt: new Date().toISOString(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        entityId: requestedId,
+        isValid: true,
         source: {
           id: requestedId,
           name: '自定义变量',
           type: 'custom'
         }
-      } as VariableCommonData;
+      } as Variable;
     }
     
     console.log(`[IdentifierTester] 未找到匹配变量: ${identifier}`);
@@ -390,32 +401,21 @@ const IdentifierTester: React.FC = () => {
   };
   
   // 处理搜索按钮点击或回车 - 优先从直接API获取的数据中查找
-  const handleSearch = (customVariables?: VariableCommonData[]) => {
+  const handleSearch = (customVariables?: Variable[]) => {
     if (!normalizedIdentifier) {
       setError('请输入系统标识符');
       return;
     }
     
     try {
-      // 基础格式校验 - 允许带或不带@前缀
-      const checkId = normalizedIdentifier.startsWith('@') ? normalizedIdentifier.substring(1) : normalizedIdentifier;
+      // 直接进行标识符查找，不进行格式验证和修正
+      // 这是一个测试工具，我们希望它能直接显示API返回的原始数据，即使格式不正确
       
-      if (!checkId.startsWith('gv_')) {
-        setError('无效的系统标识符格式，应以"@gv_"或"gv_"开头');
-        return;
-      }
+      // 记录输入的标识符
+      console.log(`[IdentifierTester] 查找标识符: ${normalizedIdentifier}`);
       
-      // 尝试解析标识符
-      const parsed = IdentifierFormatterService.parseIdentifier(normalizedIdentifier);
-      if (!parsed) {
-        setError('无法解析系统标识符，请检查格式');
-        return;
-      }
-      
-      // 检测可能存在的格式问题并警告
-      const standardFormat = `@gv_${parsed.id}_${parsed.field}`;
-      const currentFormat = normalizedIdentifier.startsWith('@') ? normalizedIdentifier : `@${normalizedIdentifier}`;
-      const hasFormatIssue = standardFormat !== currentFormat;
+      // 直接进行标识符查找，不做额外处理
+      const hasFormatIssue = false; // 不进行格式检查
       
       // 查找匹配的变量 - 添加详细日志
       const variablesToSearch = customVariables || directVariables;
@@ -424,7 +424,7 @@ const IdentifierTester: React.FC = () => {
       // 记录所有变量的ID和字段方便调试
       if (variablesToSearch.length < 20) {  // 只在变量数量较少时打印详情
         variablesToSearch.forEach(v => {
-          console.log(`[IdentifierTester] 可用变量: ID=${v.id}, 字段=${v.field}, 标识符=${v.identifier}`);
+          console.log(`[IdentifierTester] 可用变量: ID=${v.id}, 字段=${v.fieldname}, 标识符=${v.identifier}`);
         });
       }
       
@@ -432,21 +432,12 @@ const IdentifierTester: React.FC = () => {
       const found = findVariableByIdentifier(normalizedIdentifier, variablesToSearch);
       
       if (found) {
+        // 直接显示找到的变量，不做格式警告
         setVariable(found);
-        if (hasFormatIssue) {
-          setError(`警告：标识符格式不规范，标准格式应为 ${standardFormat}`);
-        } else {
-          setError(null);
-        }
+        setError(null);
       } else {
-        // 尝试使用标准格式再次查找
-        const foundWithStandard = findVariableByIdentifier(standardFormat, variablesToSearch);
-        if (foundWithStandard) {
-          setVariable(foundWithStandard);
-          setError(`警告：已找到变量，但标识符格式不规范，已自动转换为 ${standardFormat}`);
-        } else {
-          setError('未找到匹配的变量，请检查标识符是否正确');
-        }
+        // 未找到变量，直接报错
+        setError('未找到匹配的变量，请检查标识符是否正确');
       }
     } catch (err) {
       console.error('解析标识符失败:', err);
@@ -468,7 +459,7 @@ const IdentifierTester: React.FC = () => {
     IdentifierFormatterService.parseIdentifier(normalizedIdentifier) : null;
   
   // 获取变量类型样式
-  const typeColors = variable ? VariableThemeService.getTypeColor(variable.sourceType) : null;
+  const typeColors = variable ? VariableThemeService.getTypeColor(variable.type) : null;
   
   // 格式化创建/更新时间
   const formatDate = (date: Date | string | undefined) => {
@@ -576,7 +567,7 @@ const IdentifierTester: React.FC = () => {
       
       <div style={{ marginBottom: 8 }}>
         <Text type="secondary">
-          提示：标准格式为 <code>@gv_UUID_field</code>，例如：<code>@gv_4b788411-c1cb-4082-9645-9848629570a7_input</code>
+          提示：v3.0标准格式为 <code>@gv_type_entityId_fieldname-=</code>，例如：<code>@gv_custom_4b788411-c1cb-4082-9645-9848629570a7_value-=</code>
         </Text>
       </div>
 
@@ -593,7 +584,7 @@ const IdentifierTester: React.FC = () => {
           <div style={{ marginBottom: 16 }}>
             <div
               style={{
-                ...VariableThemeService.getTagStyle(variable.sourceType),
+                ...VariableThemeService.getTagStyle(variable.type),
                 display: 'inline-block',
                 marginRight: 8,
               }}
@@ -622,7 +613,7 @@ const IdentifierTester: React.FC = () => {
               label="类型" 
               labelStyle={{ width: '120px' }}
             >
-              {getTypeTag(variable.sourceType)}
+              {getTypeTag(variable.type)}
               <div style={{ 
                 display: 'inline-block', 
                 width: '20px', 
@@ -645,11 +636,11 @@ const IdentifierTester: React.FC = () => {
             </Descriptions.Item>
             
             <Descriptions.Item label="来源">
-              {variable.sourceName || '无'}
+              {variable.source?.name || '无'}
             </Descriptions.Item>
             
             <Descriptions.Item label="字段">
-              {variable.field}
+              {variable.fieldname}
             </Descriptions.Item>
             
             <Descriptions.Item label="规范颜色">

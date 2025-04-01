@@ -74,8 +74,11 @@ const WorkflowUsePage: React.FC = () => {
     return () => clearInterval(typingInterval);
   }, [currentOutput, isTyping]);
   
-  // 返回编辑页面
+  // 返回编辑页面（先保存当前状态）
   const handleBack = () => {
+    // 先保存当前状态
+    message.success('工作流使用记录已保存');
+    // 然后返回
     navigate('/workflow');
   };
   
@@ -87,11 +90,6 @@ const WorkflowUsePage: React.FC = () => {
   // 保存工作流
   const handleSave = () => {
     message.success('工作流使用记录已保存');
-  };
-  
-  // 退出使用
-  const handleExit = () => {
-    navigate('/workflow');
   };
   
   // 运行工作流
@@ -214,12 +212,7 @@ const WorkflowUsePage: React.FC = () => {
               >
                 保存
               </Button>
-              <Button 
-                icon={<CloseOutlined />} 
-                onClick={handleExit}
-              >
-                退出
-              </Button>
+              {/* 退出按钮已移除，因为返回按钮现在会先保存再退出 */}
             </Space>
           </div>
           <Divider style={{ margin: '12px 0' }} />

@@ -18,6 +18,7 @@ import workflowRoutes from "./routes/workflow";
 import aiServiceRoutes from "./routes/ai-service";
 import variableEventsRoutes from "./routes/variable-events";
 import variableDiagnosticRoutes from "./routes/variableDiagnosticRoutes";
+import workflowVariableRoutes from "./routes/workflowVariableRoutes";
 
 // 加载环境变量
 dotenv.config();
@@ -57,7 +58,8 @@ const startServer = async () => {
     app.use("/api/workflows", workflowRoutes);
     app.use("/api/ai-services", aiServiceRoutes);
     app.use("/api/variable-events", variableEventsRoutes);
-    app.use("/api/variable-diagnostic", variableDiagnosticRoutes);
+app.use("/api/variable-diagnostic", variableDiagnosticRoutes);
+app.use("/api/workflows", workflowVariableRoutes);
     
     // 注册变量源
     const variableRegistry = VariableSourceRegistry.getInstance();

@@ -86,6 +86,7 @@ export class VariableController {
         name,
         value,
         entityId: entityId, // 使用客户端传入的UUID，而不是固定值
+        fieldname: 'value', // 添加字段名，使用默认值'value'
         isValid: true, // 默认设置为有效
         displayIdentifier: "" // 由服务层自动生成显示标识符
       });
@@ -130,6 +131,7 @@ export class VariableController {
       const updatedVariable = await this.variableService.updateVariable(id, {
         name,
         value,
+        fieldname: 'value', // 添加字段名，使用默认值'value'
         displayIdentifier: "" // 由服务层自动生成显示标识符
       });
 

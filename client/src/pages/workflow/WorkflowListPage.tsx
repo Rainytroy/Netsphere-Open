@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Button, Input, Row, Col, Typography, Spin, message, Empty, Space, Pagination, Card, Divider } from 'antd';
-import { PlusOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
+import { Button, Input, Row, Col, Typography, Spin, message, Empty, Space, Pagination, Card, Divider, Tooltip } from 'antd';
+import { PlusOutlined, SearchOutlined, ReloadOutlined, BugOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { Workflow, workflowService } from '../../services/workflowService';
 import WorkflowCard from '../../components/workflow/WorkflowCard';
+import WorkflowDiagnosticModal from '../../components/workflow/WorkflowDiagnosticModal';
 import { DEFAULT_PAGE_SIZE } from '../../config';
 
 const { Title, Text } = Typography;
@@ -17,6 +18,7 @@ const WorkflowListPage: React.FC = () => {
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
+  const [diagnosticModalVisible, setDiagnosticModalVisible] = useState(false);
   const [pagination, setPagination] = useState({
     current: 1,
     pageSize: DEFAULT_PAGE_SIZE,
@@ -64,9 +66,26 @@ const WorkflowListPage: React.FC = () => {
     fetchWorkflows(page, searchText);
   };
 
-  // 处理创建工作流
-  const handleCreate = () => {
-    navigate('/workflow/create');
+  // 处理创建工作流 - 改为先创建后编辑模式
+  const handleCreate = async () => {
+    try {
+      setLoading(true);
+      // 先在服务器创建一个空工作流
+      const emptyWorkflow = await workflowService.createWorkflow({
+        name: '未命名工作流',
+        description: '',
+        isActive: false
+      });
+      
+      // 创建成功后直接跳转到编辑页面
+      message.success('已创建新工作流');
+      navigate(`/workflow/${emptyWorkflow.id}/edit`);
+    } catch (error) {
+      console.error('创建工作流失败:', error);
+      message.error('创建工作流失败，请重试');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // 处理复制工作流
@@ -129,43 +148,52 @@ const WorkflowListPage: React.FC = () => {
         </Space>
       </div>
 
-      {/* 搜索栏 */}
-      <Card style={{ marginBottom: 24 }}>
-        <Row gutter={16}>
-          <Col xs={24} sm={12} md={8} lg={6}>
-            <Input
-              placeholder="搜索工作流名称"
-              value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
-              onKeyPress={handleSearchInputKeyPress}
-              suffix={<SearchOutlined />}
-              style={{ width: '100%' }}
-            />
-          </Col>
-          <Col>
-            <Space>
-              <Button onClick={handleSearch} icon={<SearchOutlined />}>
-                搜索
-              </Button>
-              <Button 
-                icon={<ReloadOutlined />}
-                onClick={() => {
-                  setSearchText('');
-                  fetchWorkflows(1, '');
-                }}
-              >
-                重置
-              </Button>
-            </Space>
-          </Col>
-        </Row>
-      </Card>
-
-      {/* 工作流列表 */}
+      {/* 搜索栏和工作流列表 */}
       <Spin spinning={loading}>
-        {workflows.length > 0 ? (
-          <div>
-            <Card>
+        <Card>
+          {/* 搜索栏 */}
+          <div style={{ marginBottom: 16 }}>
+            <Row gutter={16} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Col flex="auto" style={{ display: 'flex', alignItems: 'center' }}>
+                <Input
+                  placeholder="搜索工作流名称"
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
+                  onKeyPress={handleSearchInputKeyPress}
+                  suffix={
+                    <SearchOutlined 
+                      style={{ cursor: 'pointer' }} 
+                      onClick={handleSearch}
+                    />
+                  }
+                  style={{ width: 200, marginRight: 8 }}
+                />
+                <Button 
+                  icon={<ReloadOutlined />}
+                  onClick={() => {
+                    setSearchText('');
+                    fetchWorkflows(1, '');
+                  }}
+                  size="middle"
+                />
+              </Col>
+              <Col>
+                <Tooltip title="工作流诊断工具" placement="top">
+                  <Button 
+                    icon={<BugOutlined />} 
+                    onClick={() => setDiagnosticModalVisible(true)}
+                    size="middle"
+                  />
+                </Tooltip>
+              </Col>
+            </Row>
+          </div>
+          
+          <Divider style={{ margin: '0 0 16px 0' }} />
+          
+          {/* 工作流列表或空状态 */}
+          {workflows.length > 0 ? (
+            <>
               <div style={{ 
                 display: 'flex', 
                 flexWrap: 'wrap', 
@@ -182,37 +210,43 @@ const WorkflowListPage: React.FC = () => {
                   </div>
                 ))}
               </div>
-            </Card>
-            
-            {/* 分页 */}
-            <Row justify="end" style={{ marginTop: 24 }}>
-              <Pagination
-                current={pagination.current}
-                pageSize={pagination.pageSize}
-                total={pagination.total}
-                onChange={handlePageChange}
-                showSizeChanger={false}
-                showTotal={(total) => `共 ${total} 条`}
-              />
-            </Row>
-          </div>
-        ) : (
-          <Empty 
-            description={searchText ? "没有找到匹配的工作流" : "暂无工作流，点击「创建工作流」开始设计"} 
-            style={{ marginTop: 48 }}
-          >
-            {!searchText && (
-              <Button 
-                type="primary" 
-                icon={<PlusOutlined />} 
-                onClick={handleCreate}
-              >
-                创建工作流
-              </Button>
-            )}
-          </Empty>
-        )}
+              
+              {/* 分页 */}
+              <Row justify="end" style={{ marginTop: 24 }}>
+                <Pagination
+                  current={pagination.current}
+                  pageSize={pagination.pageSize}
+                  total={pagination.total}
+                  onChange={handlePageChange}
+                  showSizeChanger={false}
+                  showTotal={(total) => `共 ${total} 条`}
+                />
+              </Row>
+            </>
+          ) : (
+            <Empty 
+              description={searchText ? "没有找到匹配的工作流" : "暂无工作流，点击「创建工作流」开始设计"} 
+              style={{ marginTop: 24, marginBottom: 24 }}
+            >
+              {!searchText && (
+                <Button 
+                  type="primary" 
+                  icon={<PlusOutlined />} 
+                  onClick={handleCreate}
+                >
+                  创建工作流
+                </Button>
+              )}
+            </Empty>
+          )}
+        </Card>
       </Spin>
+
+      {/* 工作流诊断模态框 */}
+      <WorkflowDiagnosticModal
+        visible={diagnosticModalVisible}
+        onClose={() => setDiagnosticModalVisible(false)}
+      />
     </div>
   );
 };

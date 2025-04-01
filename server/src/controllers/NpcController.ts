@@ -6,6 +6,7 @@ import * as path from "path";
 import { v4 as uuidv4 } from "uuid";
 import multer from "multer";
 import { NpcVariableSourceProvider } from "../services/NpcVariableSourceProvider";
+import { npcVariableService } from "../services/NpcVariableService";
 
 // 定义上传目录路径
 const UPLOAD_DIR = path.join(__dirname, "../../uploads/avatars");
@@ -104,6 +105,17 @@ export class NpcController {
       // 保存到数据库
       console.log("正在保存NPC数据...");
       const savedNpc = await npcRepository.save(npc);
+      
+      // 同步NPC变量到数据库
+      try {
+        console.log("正在同步NPC变量...");
+        await npcVariableService.syncNpcVariables(savedNpc);
+        console.log("NPC变量同步成功");
+      } catch (variableError) {
+        console.error("同步NPC变量失败:", variableError);
+        // 不因变量同步失败而中断响应
+      }
+      
       console.log(`NPC创建成功, ID: ${savedNpc.id}`);
       return res.status(201).json(savedNpc);
     } catch (error) {
@@ -151,6 +163,17 @@ export class NpcController {
 
       // 保存更新
       const updatedNpc = await npcRepository.save(npc);
+      
+      // 同步NPC变量到数据库
+      try {
+        console.log("正在同步NPC变量...");
+        await npcVariableService.syncNpcVariables(updatedNpc);
+        console.log("NPC变量同步成功");
+      } catch (variableError) {
+        console.error("同步NPC变量失败:", variableError);
+        // 不因变量同步失败而中断响应
+      }
+      
       return res.status(200).json(updatedNpc);
     } catch (error) {
       console.error(`更新NPC(ID: ${req.params.id})失败:`, error);
@@ -184,10 +207,10 @@ export class NpcController {
       }
 
       // 删除NPC相关的变量
-      const npcVariableProvider = new NpcVariableSourceProvider();
       try {
-        const deletedCount = await npcVariableProvider.deleteNpcVariables(id, npcName);
-        console.log(`删除了 ${deletedCount} 个与NPC(ID: ${id})相关的变量`);
+        console.log(`正在删除NPC(ID: ${id})相关变量...`);
+        await npcVariableService.deleteNpcVariables(id);
+        console.log(`NPC(ID: ${id})相关变量删除成功`);
       } catch (variableError) {
         console.error(`删除NPC(ID: ${id})变量失败:`, variableError);
         // 继续删除NPC，不因变量删除失败而中断

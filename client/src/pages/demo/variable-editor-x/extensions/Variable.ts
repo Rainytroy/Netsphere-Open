@@ -176,8 +176,19 @@ export const Variable = Node.create<VariableOptions>({
     const sourceType = originalAttrs['data-type'] || originalAttrs.sourceType || 'system';
     const value = originalAttrs['data-value'] || originalAttrs.value;
     
-    // 生成系统标识符
-    const systemIdentifier = `@gv_${id}_${field}`;
+    // 检查ID是否已经是v3.0格式 (type_entityId_field)
+    let entityId = id;
+    if (id && id.includes('_')) {
+      const idParts = id.split('_');
+      if (idParts.length >= 3) {
+        // 如果ID已经是v3.0格式，只取实体ID部分
+        entityId = idParts.slice(1, -1).join('_');
+      }
+    }
+    
+    // 生成v3.0格式系统标识符（带结束标记）
+    const systemIdentifier = `@gv_${sourceType}_${entityId}_${field}-=`;
+    console.log('[v3.0 Variable.renderHTML] 生成标识符:', systemIdentifier);
     
     // 确保显示标识符存在
     let displayIdentifier = originalAttrs['data-display-identifier'] || originalAttrs.displayIdentifier;
@@ -212,14 +223,18 @@ export const Variable = Node.create<VariableOptions>({
       transition: all 0.3s;
     `;
     
+    // 构建v3.0格式的复合ID
+    const v3Id = `${sourceType}_${entityId}_${field}`;
+    console.log('[v3.0 Variable.renderHTML] 复合ID:', v3Id);
+    
     // 直接构建最终属性集，完全绕过TipTap的属性处理
     // 使用Record<string, any>类型，允许添加任意字符串索引的属性
     const finalAttributes: Record<string, any> = {
       // 核心属性 - 标记为变量节点
       'data-variable': '',
       
-      // 变量属性 - 保留原始值
-      'data-id': id,
+      // 变量属性 - 使用v3.0格式的ID
+      'data-id': v3Id,
       'data-field': field,
       'data-source-name': sourceName,
       'data-type': sourceType,

@@ -259,10 +259,28 @@ const PromptTemplateManager: React.FC<PromptTemplateManagerProps> = ({
         <Form.Item
           name={['npcPromptTemplate', 'template']}
         >
-          <div className="prompt-editor-container">
-          <VexPromptEditor
-            ref={promptEditorRef}
-            defaultValue={form.getFieldValue(['npcPromptTemplate', 'template']) || ''}
+          <div className="prompt-editor-container" style={{ position: 'relative' }}>
+            {!selectedNpcId && (
+              <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(0, 0, 0, 0.03)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 10,
+                pointerEvents: 'none', // 允许点击穿透到下层
+              }}>
+                <Text type="secondary" style={{ fontSize: '14px' }}>请先在上方选择NPC后再编辑提示词</Text>
+              </div>
+            )}
+            <VexPromptEditor
+              ref={promptEditorRef}
+              readOnly={!selectedNpcId} // 如果没有选择NPC则禁用编辑器
+              defaultValue={form.getFieldValue(['npcPromptTemplate', 'template']) || ''}
             onChange={(value: string) => {
               // 使用富文本内容获取rawText
               if (promptEditorRef.current) {

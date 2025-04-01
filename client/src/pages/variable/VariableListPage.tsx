@@ -4,7 +4,7 @@ import { PlusOutlined, SyncOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import VariableTable from '../../components/variable/VariableTable';
 import { variableService } from '../../services/variableService';
-import useVariableData, { VariableCommonData } from '../../hooks/useVariableData';
+import useVariableData from '../../hooks/useVariableData';
 
 /**
  * 全局变量列表页面
@@ -93,7 +93,7 @@ const VariableListPage: React.FC = () => {
       
       <Card>
         <VariableTable
-          variables={variables as any[]}
+          variables={variables}
           loading={loading || refreshing}
           onEdit={handleEditVariable}
           onDelete={handleDeleteVariable}

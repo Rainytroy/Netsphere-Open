@@ -60,8 +60,15 @@ export class Variable {
    * 关联的实体ID
    * 用于快速查找特定实体相关的所有变量
    */
-  @Column({ type: 'varchar', length: 50, nullable: true })
+@Column({ type: 'varchar', length: 50, nullable: true })
   entityId: string | null;
+
+  /**
+   * 变量字段名称
+   * 如name, knowledge, input, output, value等
+   */
+  @Column({ type: 'varchar', length: 50 })
+  fieldname: string;
 
   /**
    * 变量是否有效标记
@@ -108,10 +115,11 @@ export interface CreateVariableDto {
   displayIdentifier?: string;
   value: string;
   entityId?: string | null;
+  fieldname: string;
   isValid?: boolean;
 }
 
 /**
  * 更新变量的请求参数类型
  */
-export type UpdateVariableDto = Pick<Variable, 'name' | 'value' | 'displayIdentifier'>;
+export type UpdateVariableDto = Pick<Variable, 'name' | 'value' | 'displayIdentifier' | 'fieldname'>;

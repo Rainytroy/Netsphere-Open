@@ -3,6 +3,7 @@ import { AppDataSource } from "../database";
 import { WorkTask, WorkTaskStatus, ExecutionStatus } from "../models/WorkTask";
 import { WorkTaskService } from "../services/WorkTaskService";
 import { WorkTaskVariableSourceProvider } from "../services/WorkTaskVariableSourceProvider";
+import { workTaskVariableService } from "../services/WorkTaskVariableService";
 
 /**
  * 工作任务控制器
@@ -71,6 +72,17 @@ export class WorkTaskController {
 
       // 创建工作任务
       const savedTask = await WorkTaskController.workTaskService.createWorkTask(taskData);
+      
+      // 同步工作任务变量到数据库
+      try {
+        console.log("正在同步工作任务变量...");
+        await workTaskVariableService.syncTaskVariables(savedTask);
+        console.log("工作任务变量同步成功");
+      } catch (variableError) {
+        console.error("同步工作任务变量失败:", variableError);
+        // 不因变量同步失败而中断响应
+      }
+      
       console.log(`工作任务创建成功, ID: ${savedTask.id}`);
       return res.status(201).json(savedTask);
     } catch (error) {
@@ -93,6 +105,16 @@ export class WorkTaskController {
 
       if (!updatedTask) {
         return res.status(404).json({ message: "未找到指定工作任务" });
+      }
+      
+      // 同步工作任务变量到数据库
+      try {
+        console.log("正在同步工作任务变量...");
+        await workTaskVariableService.syncTaskVariables(updatedTask);
+        console.log("工作任务变量同步成功");
+      } catch (variableError) {
+        console.error("同步工作任务变量失败:", variableError);
+        // 不因变量同步失败而中断响应
       }
 
       return res.status(200).json(updatedTask);
@@ -118,11 +140,11 @@ export class WorkTaskController {
         return res.status(404).json({ message: "未找到指定工作任务" });
       }
       
-      // 2. 使用变量提供者删除关联的变量
-      const workTaskVariableProvider = new WorkTaskVariableSourceProvider();
+      // 2. 使用变量服务删除关联的变量
       try {
-        const deletedCount = await workTaskVariableProvider.deleteWorkTaskVariables(id, task.name);
-        console.log(`删除了 ${deletedCount} 个与工作任务(ID: ${id})相关的变量`);
+        console.log(`正在删除工作任务(ID: ${id})相关变量...`);
+        await workTaskVariableService.deleteTaskVariables(id);
+        console.log(`工作任务(ID: ${id})相关变量删除成功`);
       } catch (variableError) {
         console.error(`删除工作任务(ID: ${id})变量失败:`, variableError);
         // 继续删除工作任务，不因变量删除失败而中断
@@ -326,6 +348,16 @@ export class WorkTaskController {
       // 更新npcTemplates字段
       task.npcTemplates = templates;
       await workTaskRepository.save(task);
+      
+      // 同步工作任务变量到数据库
+      try {
+        console.log("正在同步工作任务变量...");
+        await workTaskVariableService.syncTaskVariables(task);
+        console.log("工作任务变量同步成功");
+      } catch (variableError) {
+        console.error("同步工作任务变量失败:", variableError);
+        // 不因变量同步失败而中断响应
+      }
       
       return res.status(200).json({
         success: true,

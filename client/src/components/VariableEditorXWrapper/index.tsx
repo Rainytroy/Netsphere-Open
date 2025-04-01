@@ -192,45 +192,33 @@ const handleContentChange = useCallback((content: string) => {
       }
     },
     
-    // 获取使用的变量
+    // 获取使用的变量 - 专用于v3.0格式
     getUsedVariables: () => {
       if (!editorRef.current || !isReady || !variables.length) return [];
       
       try {
         const rawText = editorRef.current.getRawText();
         
-        // 匹配系统标识符
-        const systemIdRegex = /@gv_([a-zA-Z0-9-]+)_([a-zA-Z0-9_]+)/g;
-        const matches = rawText.match(systemIdRegex) || [];
+        // 使用extractV3Identifiers提取v3.0标识符
+        const extractedIdentifiers = formatUtils.extractVariableIds(rawText);
         
-        // 使用Set去重
-        const uniqueIds = new Set<string>();
-        const result: VariableData[] = [];
+        // 从变量列表中查找匹配的变量
+        const foundVariables = formatUtils.findVariablesByIds(extractedIdentifiers, variables);
         
-        matches.forEach(match => {
-          // 提取ID和字段
-          const parts = match.split('_');
-          if (parts.length >= 3) {
-            const id = parts[1];
-            const field = parts[2];
-            const key = `${id}_${field}`;
-            
-            // 如果没处理过这个变量
-            if (!uniqueIds.has(key)) {
-              uniqueIds.add(key);
-              
-              // 查找对应的变量
-              const variable = variables.find(v => v.id === id && v.field === field);
-              if (variable) {
-                result.push(variable);
-              }
-            }
-          }
+        // 转换为v3.0格式ID
+        return foundVariables.map(variable => {
+          // 构建v3.0格式的复合ID
+          const v3Id = `${variable.type}_${variable.id}_${variable.field}`;
+          console.log('[v3.0] 变量ID转换:', variable.id, '=>', v3Id);
+          
+          // 创建新对象，更新id属性为v3.0格式
+          return {
+            ...variable,
+            id: v3Id
+          };
         });
-        
-        return result;
       } catch (error) {
-        console.error('[VEX-1.2] 获取使用的变量错误:', error);
+        console.error('[VEX-3.0] 获取使用的变量错误:', error);
         return [];
       }
     },
@@ -319,44 +307,70 @@ const handleContentChange = useCallback((content: string) => {
     }
   }, [isReady]);
   
-  // 处理预览显示
+  // 处理预览显示 - 优化v3.0标识符解析
   const handleShowPreview = useCallback(async () => {
     if (!editorRef.current || !isReady) return;
     
     try {
       const rawText = editorRef.current.getRawText();
+      console.log('[v3.0] 准备解析文本:', rawText);
+      
+  // 调试匹配情况
+      if (rawText.includes('@gv_')) {
+        import('../../pages/demo/variable-editor-x/utils/formatters').then(formatters => {
+          (formatters as any).debugMatch?.(rawText);
+        });
+      }
+      
+      // 使用解析器转换文本
       const parsed = await parseText(rawText);
+      console.log('[v3.0] 解析后文本:', parsed);
+      
       setResolvedContent(parsed);
       setPreviewModalVisible(true);
     } catch (error) {
-      console.error('[VEX-1.2] 显示预览错误:', error);
+      console.error('[VEX-3.0] 显示预览错误:', error);
     }
   }, [parseText, isReady]);
   
-  // 刷新变量处理
-  const handleRefreshVariables = useCallback(async () => {
+  // 更新标识符处理 - 确保正确转换v3.0标识符为变量标签
+  const handleUpdateIdentifiers = useCallback(async () => {
     try {
+      console.log('[v3.0] 开始更新标识符...');
+      
+      // 刷新变量数据确保最新
       await refreshVariables();
       
       // 如果编辑器已准备好，更新内容
       if (editorRef.current && isReady) {
         const rawText = editorRef.current.getRawText();
         
-        // 用最新变量数据将rawText转回HTML
-        const updatedHtml = formatUtils.rawTextToHtml(rawText, variables);
+        console.log('[v3.0] 当前编辑器文本:', rawText);
         
-        // 设置更新后的内容到编辑器
-        editorRef.current.setContent(updatedHtml);
-        
-        // 同步变量节点
-        setTimeout(() => {
-          if (editorRef.current) {
-            editorRef.current.syncVariableNodes();
-          }
-        }, 50);
+        // 显式检查是否包含v3.0标识符
+        if (rawText.includes('@gv_') && rawText.includes('-=')) {
+          console.log('[v3.0] 检测到标识符, 变量数量:', variables.length);
+          
+          // 用最新变量数据将rawText转回HTML
+          const updatedHtml = formatUtils.rawTextToHtml(rawText, variables);
+          
+          console.log('[v3.0] 转换后HTML长度:', updatedHtml.length);
+          
+          // 设置更新后的内容到编辑器
+          editorRef.current.setContent(updatedHtml);
+          
+          // 同步变量节点
+          setTimeout(() => {
+            if (editorRef.current) {
+              editorRef.current.syncVariableNodes();
+            }
+          }, 50);
+        } else {
+          console.log('[v3.0] 未检测到需要转换的标识符');
+        }
       }
     } catch (error) {
-      console.error('[VEX-1.2] 刷新变量错误:', error);
+      console.error('[VEX-3.0] 更新标识符错误:', error);
     }
   }, [refreshVariables, variables, isReady]);
   
@@ -369,7 +383,7 @@ const handleContentChange = useCallback((content: string) => {
     return {
       onInsertVariable: handleShowVariableSelector,
       onShowPreview: handleShowPreview,
-      onRefreshVariables: handleRefreshVariables,
+      onRefreshVariables: handleUpdateIdentifiers, // 使用更新标识符处理函数
       config: typeof toolbar === 'object' ? {
         showInsertVariable: toolbar.insertVariable !== false,
         showPreview: toolbar.preview !== false, 
@@ -377,7 +391,7 @@ const handleContentChange = useCallback((content: string) => {
         showVersion: true
       } : undefined
     };
-  }, [toolbar, handleShowVariableSelector, handleShowPreview, handleRefreshVariables]);
+  }, [toolbar, handleShowVariableSelector, handleShowPreview, handleUpdateIdentifiers]);
   
   // 渲染更健壮的编辑器结构，扁平化DOM
   return (

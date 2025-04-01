@@ -42,12 +42,23 @@ export class VariableNodeManager {
   
   /**
    * 插入变量到编辑器
+   * 专门支持v3.0格式标识符
    */
   public insertVariable(editor: Editor, variable: VariableData): void {
     if (!editor) return;
     
     const timestamp = new Date().toISOString();
-    console.log(`[VariableNodeManager.insertVariable:${timestamp}] 准备插入变量:`, variable);
+    console.log(`[v3.0 插入变量:${timestamp}]`);
+    
+    // 记录详细的变量信息
+    console.log(`[v3.0 变量数据:${timestamp}]`, {
+      id: variable.id.substring(0, 8) + '...',
+      type: variable.type,
+      sourceType: variable.sourceType,
+      field: variable.field,
+      identifier: variable.identifier,
+      displayId: variable.displayIdentifier
+    });
     
     try {
       // 检查光标前的字符并删除@符号
@@ -62,17 +73,35 @@ export class VariableNodeManager {
           '\n'
         );
         
-        console.log(`[VariableNodeManager.insertVariable:${timestamp}] 光标前一个字符:`, JSON.stringify(charBeforeCursor));
-        
         // 如果光标前一个字符是@符号，则直接删除它
         if (charBeforeCursor === '@') {
-          console.log(`[VariableNodeManager.insertVariable:${timestamp}] 发现@符号，位置:`, cursorPos - 1);
+          console.log(`[v3.0 插入变量:${timestamp}] 发现并删除@符号`);
           
           // 创建并执行事务直接删除@符号
           const tr = editor.state.tr.delete(cursorPos - 1, cursorPos);
           editor.view.dispatch(tr);
-          console.log(`[VariableNodeManager.insertVariable:${timestamp}] 已直接删除@符号`);
         }
+      }
+      
+      // 确保变量有sourceType属性
+      const sourceType = variable.sourceType || 'custom';
+      
+      // 对于v3.0格式，我们需要从variable中获取type
+      const varType = variable.type || sourceType;
+      
+      // 确保displayIdentifier正确设置
+      let displayId = variable.displayIdentifier;
+      if (!displayId) {
+        const shortId = variable.id.substring(0, Math.min(4, variable.id.length));
+        displayId = `@${variable.sourceName}.${variable.field}#${shortId}`;
+        console.log(`[v3.0 插入变量:${timestamp}] 生成显示标识符:`, displayId);
+      }
+      
+      // 确保系统标识符格式正确
+      let systemId = variable.identifier;
+      if (!systemId.startsWith('@gv_') || !systemId.endsWith('-=')) {
+        systemId = `@gv_${varType}_${variable.id}_${variable.field}-=`;
+        console.log(`[v3.0 插入变量:${timestamp}] 修正系统标识符:`, systemId);
       }
       
       // 使用变量节点引擎创建规范化的属性集
@@ -80,10 +109,15 @@ export class VariableNodeManager {
         id: variable.id,
         field: variable.field,
         sourceName: variable.sourceName,
-        sourceType: variable.sourceType,
-        displayIdentifier: variable.displayIdentifier,
-        value: variable.value
+        sourceType: sourceType,
+        displayIdentifier: displayId,
+        value: variable.value,
+        // 使用type支持v3.0格式标识符
+        type: varType
       });
+      
+      // 记录系统标识符，但不直接传递给createNodeAttributes
+      console.log(`[v3.0 插入变量:${timestamp}] 系统标识符:`, systemId);
       
       // 验证变量属性
       const validation = variableNodeEngine.validateNodeAttributes(variableAttrs);
@@ -119,14 +153,20 @@ export class VariableNodeManager {
         console.error(`[VariableNodeManager.insertVariable:${timestamp}] 降级处理中删除@符号失败:`, e);
       }
       
-      (editor.chain().focus() as any).insertVariable({
+      // 构建变量属性，确保包含type
+      const varAttributes = {
         id: variable.id,
         field: variable.field,
         sourceName: variable.sourceName,
-        sourceType: variable.sourceType,
+        sourceType: variable.sourceType || 'custom',
         displayIdentifier: variable.displayIdentifier,
-        value: variable.value
-      }).run();
+        value: variable.value,
+        // 使用统一的type属性
+        type: variable.type || variable.sourceType || 'custom'
+      };
+      
+      // 插入变量
+      (editor.chain().focus() as any).insertVariable(varAttributes).run();
     }
   }
   
@@ -217,14 +257,18 @@ export class VariableNodeManager {
     try {
       console.log(`[VariableNodeManager.repairSingleTag:${timestamp}] 修复节点属性:`, nodeData);
       
+      // 构建v3.0格式的ID: {type}_{entityId}_{fieldname}
+      const v3Id = `${nodeData.sourceType}_${nodeData.id}_${nodeData.field}`;
+      console.log(`[VariableNodeManager.repairSingleTag:${timestamp}] 使用v3.0格式ID: ${v3Id}`);
+      
       // 直接设置DOM属性而不是使用变量节点引擎（避免循环）
-      element.setAttribute('data-id', nodeData.id);
+      element.setAttribute('data-id', v3Id);
       element.setAttribute('data-field', nodeData.field);
       element.setAttribute('data-source-name', nodeData.sourceName);
       element.setAttribute('data-type', nodeData.sourceType);
       
-      // 确保系统标识符一致
-      const systemId = `@gv_${nodeData.id}_${nodeData.field}`;
+      // 确保系统标识符一致 - v3.0格式：@gv_type_id_field-=
+      const systemId = `@gv_${nodeData.sourceType}_${nodeData.id}_${nodeData.field}-=`;
       element.setAttribute('data-identifier', systemId);
       
       // 处理显示标识符

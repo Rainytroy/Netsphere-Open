@@ -30,13 +30,26 @@ export function serializeToRawText(doc: ProseMirrorNode): string {
 function serializeNodeToRawText(node: ProseMirrorNode): string {
   // 如果是变量节点，直接生成系统标识符
   if (node.type.name === 'variable') {
-    // 从节点属性中提取ID和字段信息
+    // 从节点属性中提取必要信息
     const id = node.attrs.id || 'unknown';
     const field = node.attrs.field || 'unknown';
+    const sourceType = node.attrs.sourceType || 'custom';
+    const type = node.attrs.type || sourceType;
     
-    // 使用直接从节点属性生成的系统标识符
-    // 注意：这避免了依赖DOM提取的系统标识符，确保数据完整性
-    return `@gv_${id}_${field}`;
+    // 检查ID是否已经是v3.0格式 (type_entityId_field)
+    let entityId = id;
+    if (id && id.includes('_')) {
+      const idParts = id.split('_');
+      if (idParts.length >= 3) {
+        // 只取UUID部分作为实体ID
+        entityId = idParts.slice(1, -1).join('_');
+      }
+    }
+    
+    console.log(`[v3.0 Serializer] 生成标识符: type=${type}, id=${entityId}, field=${field}`);
+    
+    // 生成v3.0格式系统标识符，包括结束标记
+    return `@gv_${type}_${entityId}_${field}-=`;
   }
   
   // 如果是文本节点，直接返回文本内容

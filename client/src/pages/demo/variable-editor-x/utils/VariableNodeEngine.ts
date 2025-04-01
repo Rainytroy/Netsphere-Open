@@ -20,6 +20,7 @@ export interface VariableNodeAttributes {
   sourceType: string;
   value?: string;
   displayIdentifier?: string;
+  type?: string; // 变量类型，用于v3.0格式标识符
 }
 
 /**
@@ -49,7 +50,8 @@ export class VariableNodeEngine {
     const id = data.id || 'unknown';
     const field = data.field || 'unknown';
     const sourceName = data.sourceName || 'Unknown';
-    const sourceType = data.sourceType || 'system';
+    const sourceType = data.sourceType || 'custom';
+    const type = data.type || sourceType; // 使用传入的type或sourceType
     
     // 生成显示标识符（如果不存在）
     let displayIdentifier = data.displayIdentifier;
@@ -68,7 +70,8 @@ export class VariableNodeEngine {
       sourceName,
       sourceType,
       displayIdentifier,
-      value
+      value,
+      type // 添加type属性
     };
     
     return attributes;
@@ -101,10 +104,12 @@ export class VariableNodeEngine {
   }
   
   /**
-   * 生成系统标识符
+   * 生成v3.0格式系统标识符
+   * 格式: @gv_type_id_field-=
    */
-  public generateSystemIdentifier(id: string, field: string): string {
-    return `@gv_${id}_${field}`;
+  public generateSystemIdentifier(id: string, field: string, type: string = 'custom'): string {
+    // 使用v3.0格式
+    return `@gv_${type}_${id}_${field}-=`;
   }
 
   /**
@@ -116,28 +121,38 @@ export class VariableNodeEngine {
   }
   
   /**
-   * 从标识符解析变量节点信息
+   * 从v3.0格式标识符解析变量节点信息
+   * 格式: @gv_type_id_field-=
    */
   public parseIdentifier(identifier: string): Partial<VariableNodeAttributes> | null {
-    const match = /^@gv_([a-zA-Z0-9-]+)_([a-zA-Z0-9_]+)$/.exec(identifier);
-    if (!match) return null;
+    // 匹配v3.0格式
+    const match = /^@gv_([a-zA-Z0-9]+)_([a-zA-Z0-9-]+)_([a-zA-Z0-9_]+)-=$/.exec(identifier);
+    if (match) {
+      return {
+        type: match[1],
+        id: match[2],
+        field: match[3]
+      };
+    }
     
-    return {
-      id: match[1],
-      field: match[2]
-    };
+    return null;
   }
   
   /**
    * 生成HTML表示
    */
   public generateHtml(attrs: VariableNodeAttributes): string {
-    // 确保有效的系统标识符
-    const systemIdentifier = this.generateSystemIdentifier(attrs.id, attrs.field);
+    // 使用v3.0格式生成标识符
+    const type = attrs.type || attrs.sourceType;
+    const systemIdentifier = this.generateSystemIdentifier(attrs.id, attrs.field, type);
     
     // 确保有效的显示标识符
     const displayIdentifier = attrs.displayIdentifier || 
                               this.generateDisplayIdentifier(attrs.id, attrs.field, attrs.sourceName);
+    
+    // 构建符合v3.0标准的ID
+    const v3Id = `${attrs.sourceType}_${attrs.id}_${attrs.field}`;
+    console.log('[v3.0] 生成变量HTML, 使用v3.0格式ID:', v3Id);
     
     // 获取主题颜色
     const colors = VariableThemeService.getTypeColor(attrs.sourceType);
@@ -145,11 +160,12 @@ export class VariableNodeEngine {
     // 生成HTML
     return `<span 
       data-variable="" 
-      data-id="${attrs.id}" 
+      data-id="${v3Id}" 
       data-field="${attrs.field}" 
       data-source-name="${attrs.sourceName}" 
       data-identifier="${systemIdentifier}" 
-      data-type="${attrs.sourceType}" 
+      data-type="${attrs.sourceType}"
+      data-value="${attrs.value || ''}" 
       data-display-identifier="${displayIdentifier}"
       class="variable-tag variable-type-${attrs.sourceType}" 
       contenteditable="false"
@@ -182,62 +198,69 @@ export class VariableNodeEngine {
       throw new Error('无法从null或undefined元素提取变量属性');
     }
     
-    const timestamp = new Date().toISOString();
-    console.log(`[VariableNodeEngine.extractFromDOM:${timestamp}] 开始从DOM元素提取属性`);
-    
     try {
-      // 直接提取属性，保留原始值而不进行规范化或默认值替换
-      // 这是一个关键变化：只提取值，不做规范化，避免提前转换
+      // 直接提取属性
       const rawId = element.getAttribute('data-id');
       const rawField = element.getAttribute('data-field');
       const rawSourceName = element.getAttribute('data-source-name');
       const rawSourceType = element.getAttribute('data-type');
       const rawDisplayId = element.getAttribute('data-display-identifier');
+      const rawValue = element.getAttribute('data-value');
       
-      console.log(`[VariableNodeEngine.extractFromDOM:${timestamp}] 提取的原始属性:`, {
-        id: rawId,
-        field: rawField,
-        sourceName: rawSourceName,
-        sourceType: rawSourceType,
-        displayIdentifier: rawDisplayId
-      });
+      console.log('[v3.0] 从DOM提取属性，原始ID:', rawId);
+      
+      // 处理v3.0格式ID (type_entityId_field)
+      let entityId = rawId || 'unknown';
+      let field = rawField;
+      let sourceType = rawSourceType;
+      
+      // 检查是否为v3.0格式复合ID
+      if (rawId && rawId.includes('_')) {
+        const idParts = rawId.split('_');
+        if (idParts.length >= 3) {
+          // 假设格式为 {type}_{entityId}_{field}
+          sourceType = idParts[0];
+          // 对于entityId，可能包含下划线，需要重建中间部分
+          entityId = idParts.slice(1, -1).join('_');
+          field = idParts[idParts.length - 1];
+          
+          console.log('[v3.0] 解析v3.0格式ID:', {
+            sourceType,
+            entityId,
+            field
+          });
+        }
+      }
       
       // 过滤掉undefined属性，仅保留存在的属性
       const attrs: Record<string, any> = {};
-      if (rawId !== null) attrs.id = rawId;
-      if (rawField !== null) attrs.field = rawField;
-      if (rawSourceName !== null) attrs.sourceName = rawSourceName;
-      if (rawSourceType !== null) attrs.sourceType = rawSourceType;
+      attrs.id = entityId;
+      attrs.field = field || 'unknown';
+      attrs.sourceName = rawSourceName || 'Unknown';
+      attrs.sourceType = sourceType || 'custom';
       if (rawDisplayId !== null) attrs.displayIdentifier = rawDisplayId;
+      if (rawValue !== null) attrs.value = rawValue;
       
-      // 验证是否至少有基本属性
-      if (!attrs.id && !attrs.field && !attrs.sourceName && !attrs.sourceType) {
-        console.warn(`[VariableNodeEngine.extractFromDOM:${timestamp}] 元素缺少必要的变量属性`);
-        
-        // 尝试从元素内容推断信息
-        const content = element.textContent || '';
-        const displayIdMatch = content.match(/@([^.]+)\.([^#]+)#([\w]+)/);
-        
-        if (displayIdMatch) {
-          console.log(`[VariableNodeEngine.extractFromDOM:${timestamp}] 从内容提取显示标识符:`, displayIdMatch[0]);
-          attrs.sourceName = displayIdMatch[1] || attrs.sourceName;
-          attrs.field = displayIdMatch[2] || attrs.field;
-          // 不从显示标识符推断ID，因为这是短ID
-          attrs.displayIdentifier = displayIdMatch[0];
+      // 提取标识符，尝试获取type
+      const identifier = element.getAttribute('data-identifier');
+      if (identifier) {
+        const parsed = this.parseIdentifier(identifier);
+        if (parsed && parsed.type) {
+          attrs.type = parsed.type;
         }
       }
       
       // 最后使用createNodeAttributes进行规范化
       return this.createNodeAttributes(attrs);
     } catch (error) {
-      console.error(`[VariableNodeEngine.extractFromDOM:${timestamp}] 提取属性出错:`, error);
+      console.error('提取DOM属性出错:', error);
       
-      // 返回一个基本变量节点，确保不会中断流程
+      // 返回一个基本变量节点
       return this.createNodeAttributes({
         id: 'unknown',
         field: 'unknown',
         sourceName: 'Unknown',
-        sourceType: 'system'
+        sourceType: 'custom'
       });
     }
   }
@@ -246,11 +269,14 @@ export class VariableNodeEngine {
    * 创建变量数据对象
    */
   public createVariableData(attrs: VariableNodeAttributes): VariableData {
+    // 如果有type属性，使用它更新sourceType
+    const sourceType = attrs.type || attrs.sourceType;
+    
     return new VariableDataImpl({
       id: attrs.id,
       field: attrs.field,
       sourceName: attrs.sourceName,
-      sourceType: attrs.sourceType,
+      sourceType: sourceType, // 使用决定的sourceType
       value: attrs.value,
       displayIdentifier: attrs.displayIdentifier
     });
@@ -260,15 +286,20 @@ export class VariableNodeEngine {
    * 修复DOM元素，确保所有属性和样式正确
    */
   public repairDOMElement(element: HTMLElement, attrs: VariableNodeAttributes): void {
-    // 系统标识符
-    const systemIdentifier = this.generateSystemIdentifier(attrs.id, attrs.field);
+    // 生成v3.0格式标识符
+    const type = attrs.type || attrs.sourceType;
+    const systemIdentifier = this.generateSystemIdentifier(attrs.id, attrs.field, type);
     
     // 显示标识符
     const displayIdentifier = attrs.displayIdentifier || 
                              this.generateDisplayIdentifier(attrs.id, attrs.field, attrs.sourceName);
     
+    // 构建符合v3.0标准的ID
+    const v3Id = `${attrs.sourceType}_${attrs.id}_${attrs.field}`;
+    console.log('[v3.0] 修复DOM元素, 使用v3.0格式ID:', v3Id);
+    
     // 设置属性
-    element.setAttribute('data-id', attrs.id);
+    element.setAttribute('data-id', v3Id);
     element.setAttribute('data-field', attrs.field);
     element.setAttribute('data-source-name', attrs.sourceName);
     element.setAttribute('data-type', attrs.sourceType);
@@ -311,6 +342,19 @@ export class VariableNodeEngine {
     const domSourceName = element.getAttribute('data-source-name');
     const domSourceType = element.getAttribute('data-type');
     
+    // 检查DOM中的id是否使用v3.0格式
+    if (domId && domId.includes('_')) {
+      // v3.0格式ID: {type}_{entityId}_{field}
+      const expectedV3Id = `${attrs.sourceType}_${attrs.id}_${attrs.field}`;
+      return (
+        domId === expectedV3Id &&
+        domField === attrs.field &&
+        domSourceName === attrs.sourceName &&
+        domSourceType === attrs.sourceType
+      );
+    }
+    
+    // 向后兼容：支持旧格式ID（仅使用entityId）
     return (
       domId === attrs.id &&
       domField === attrs.field &&

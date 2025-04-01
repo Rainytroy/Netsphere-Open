@@ -47,7 +47,31 @@ const VariableSelectorModal: React.FC<VariableSelectorModalProps> = ({
       // 根据ID查找完整的变量数据
       const variable = variables.find(v => v.identifier === selectedVariable);
       if (variable) {
-        onSelect(variable);
+        // 记录详细日志，确保使用的是v3.0格式的标识符
+        console.log('[v3.0] 选择要插入的变量:', {
+          id: variable.id.substring(0, 8) + '...',
+          type: variable.type,
+          field: variable.field,
+          identifier: variable.identifier,
+          displayId: variable.displayIdentifier
+        });
+        
+        // 验证标识符格式
+        if (!variable.identifier.startsWith('@gv_') || !variable.identifier.endsWith('-=')) {
+          console.warn('[v3.0] 警告: 变量标识符不符合v3.0格式:', variable.identifier);
+          
+          // 强制重新构建标识符以确保符合格式
+          const correctedVariable = {
+            ...variable,
+            identifier: `@gv_${variable.type}_${variable.id}_${variable.field}-=`
+          };
+          
+          console.log('[v3.0] 已修正标识符:', correctedVariable.identifier);
+          onSelect(correctedVariable);
+        } else {
+          // 标识符格式正确，直接使用
+          onSelect(variable);
+        }
       }
     }
     onCancel();
@@ -70,13 +94,15 @@ const VariableSelectorModal: React.FC<VariableSelectorModalProps> = ({
       : searchLower;
     
     return (
-      // 搜索系统标识符
+      // 搜索系统标识符 (v3.0格式)
       v.identifier.toLowerCase().includes(normalizedSearch) ||
+      // 搜索变量类型
+      v.type.toLowerCase().includes(normalizedSearch) ||
       // 搜索来源名称
       v.sourceName.toLowerCase().includes(normalizedSearch) ||
       // 搜索字段名称
       v.field.toLowerCase().includes(normalizedSearch) ||
-      // 搜索显示标识符（添加对完整显示标识符的搜索支持）
+      // 搜索显示标识符
       (v.displayIdentifier && v.displayIdentifier.toLowerCase().includes(normalizedSearch)) ||
       // 支持不带@前缀的显示标识符搜索
       (v.displayIdentifier && v.displayIdentifier.toLowerCase().substring(1).includes(normalizedSearch)) ||

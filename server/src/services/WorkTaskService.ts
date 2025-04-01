@@ -354,7 +354,7 @@ export class WorkTaskService {
   }
 
   /**
-   * 获取默认的NPC提示词模板
+   * 获取默认的NPC提示词模板 (v3.0格式)
    */
   public async getDefaultPromptTemplate(npcId: string): Promise<string> {
     try {
@@ -368,11 +368,10 @@ export class WorkTaskService {
         throw new Error(`NPC不存在: ${npcId}`);
       }
       
-      // 使用与 NpcVariableSourceProvider 相同的方式生成变量标识符
-      // 使用 npcId 的前6位作为变量标识符后缀
-      const idSuffix = npc.id.substring(0, 6);
+      // 使用v3.0格式系统标识符: @gv_{type}_{entityId}_{field}-=
+      console.log(`[v3.0] 生成NPC默认模板, 使用NPC(${npc.name}): ${npcId}`);
       
-      return `你是@${npc.name}.name#${idSuffix}，现在你具备的知识背景是：@${npc.name}.kb#${idSuffix}，根据你的行动原则：@${npc.name}.ap#${idSuffix}，请你给出以上输入的反馈。`;
+      return `你是@gv_npc_${npc.id}_name-=，现在你具备的知识背景是：@gv_npc_${npc.id}_knowledge-=，根据你的行动原则：@gv_npc_${npc.id}_act-=，请你给出以上输入的反馈。`;
     } catch (error) {
       const e = error as Error;
       console.error(`获取默认NPC提示词模板失败: ${e.message}`);

@@ -16,6 +16,10 @@ export interface NodeConfigPanelProps {
   onSave: (nodeId: string, config: any) => void;
   onDelete?: (nodeId: string) => void; // 新增删除节点的回调
   loading?: boolean;
+  // 新增工作流相关属性，用于同步更新工作流编辑器状态
+  workflowContext?: any; // 工作流编辑器上下文
+  saveWorkflow?: () => Promise<void>; // 工作流保存方法
+  updateEditorState?: (field: string, value: any) => void; // 更新编辑器状态
 }
 
 /**
@@ -28,7 +32,10 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
   onClose,
   onSave,
   onDelete,
-  loading = false
+  loading = false,
+  workflowContext,
+  saveWorkflow,
+  updateEditorState
 }) => {
   // 记录弹窗打开状态和保存状态
   const [isModalFullyOpen, setIsModalFullyOpen] = useState(false);
@@ -45,34 +52,49 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
   };
   
   // 处理节点配置保存
-  const handleSave = (nodeId: string, config: any) => {
-    // 设置保存状态为加载中
-    setIsSaving(true);
-    
-    // 调用保存回调
-    onSave(nodeId, config);
-    
-    // 显示保存成功的消息 - 确保node不为null
-    if (!node) return;
-    
-    const nodeType = node.type || '未知';
-    let nodeTypeName = '节点';
-    switch (nodeType) {
-      case 'start': nodeTypeName = '起点卡'; break;
-      case 'worktask': nodeTypeName = '工作任务卡'; break;
-      case 'assign': nodeTypeName = '赋值卡'; break;
-      case 'loop': nodeTypeName = '循环卡'; break;
-      case 'display': nodeTypeName = '展示卡'; break;
+  const handleSave = async (nodeId: string, config: any) => {
+    try {
+      // 设置保存状态为加载中
+      setIsSaving(true);
+      
+      // 调用保存回调
+      onSave(nodeId, config);
+
+      // 显示保存成功的消息 - 确保node不为null
+      if (!node) return;
+      
+      const nodeType = node.type || '未知';
+      let nodeTypeName = '节点';
+      switch (nodeType) {
+        case 'start': nodeTypeName = '起点卡'; break;
+        case 'worktask': nodeTypeName = '工作任务卡'; break;
+        case 'assign': nodeTypeName = '赋值卡'; break;
+        case 'loop': nodeTypeName = '循环卡'; break;
+        case 'display': nodeTypeName = '展示卡'; break;
+      }
+      
+      // 针对起点卡的特殊处理 - 同步更新工作流上下文中的描述
+      if (nodeType === 'start' && updateEditorState && config.promptText) {
+        console.log('[NodeConfigPanel] 更新工作流编辑器中的description状态:', config.promptText);
+        updateEditorState('description', config.promptText);
+      }
+      
+      // 移除: 自动保存整个工作流的逻辑
+      // 不再调用saveWorkflow，避免触发全局状态更新
+      
+      // 使用消息提示 - 修改提示信息
+      const successMsg = `${nodeTypeName}配置已保存`;
+      message.success(successMsg);
+    } catch (error) {
+      console.error('[NodeConfigPanel] 保存出错:', error);
+      message.error('保存失败，请检查控制台错误信息');
+    } finally {
+      // 短暂延迟后关闭面板
+      setTimeout(() => {
+        setIsSaving(false);
+        onClose();
+      }, 500); // 短暂延迟以保证用户看到保存成功的反馈
     }
-    
-    // 使用消息提示
-    message.success(`${nodeTypeName}配置已保存`);
-    
-    // 保存完成后关闭面板
-    setTimeout(() => {
-      setIsSaving(false);
-      onClose();
-    }, 500); // 短暂延迟以保证用户看到保存成功的反馈
   };
   
   if (!node) {
@@ -91,6 +113,8 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
             nodeId={node.id}
             initialConfig={nodeConfig}
             onSave={handleSave}
+            updateEditorState={updateEditorState}
+            saveWorkflow={saveWorkflow}
           />
         );
         case 'worktask':

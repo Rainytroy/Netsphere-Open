@@ -3,6 +3,7 @@ import { Variable, VariableType, CreateVariableDto, UpdateVariableDto } from '..
 import { IdentifierFormatterService } from './IdentifierFormatterService';
 import { VariableEventPublisher, VariableEventType } from './VariableEventPublisher';
 import { VariableSourceRegistry } from './VariableSourceRegistry';
+import { ILike, Like } from 'typeorm';
 
 /**
  * 变量管理服务
@@ -110,13 +111,83 @@ export class VariableService {
   
   /**
    * 根据ID获取变量
-   * @param id 变量ID
+   * 支持多种ID格式：
+   * - 新格式: {type}_{entityId}_{fieldname}
+   * - UUID格式: 用作entityId查找
+   * @param id 变量ID或UUID
    */
   public async getVariableById(id: string): Promise<Variable> {
+    console.log(`[VariableService] 尝试获取变量, ID=${id}`);
     const variableRepo = AppDataSource.getRepository(Variable);
-    const variable = await variableRepo.findOne({ where: { id } });
     
+    // 1. 首先尝试直接查找完整ID (新格式)
+    let variable = await variableRepo.findOne({ where: { id } });
+    
+    // 2. 如果没找到，尝试其他方式查找
     if (!variable) {
+      console.log(`[VariableService] 通过完整ID未找到变量，尝试其他方式...`);
+      
+      // 检查是否是UUID格式的ID
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      
+      if (uuidPattern.test(id)) {
+        console.log(`[VariableService] 检测到UUID格式的ID: ${id}`);
+        
+        // 尝试查找entityId等于此UUID的自定义变量
+        variable = await variableRepo.findOne({ 
+          where: { 
+            entityId: id,
+            type: VariableType.CUSTOM
+          } 
+        });
+        
+        if (variable) {
+          console.log(`[VariableService] 通过entityId找到自定义变量: ${variable.id}`);
+        } else {
+          // 如果通过entityId没找到，尝试通过旧的系统标识符关联查找
+          console.log(`[VariableService] 通过entityId未找到变量，尝试系统标识符查找...`);
+          
+          // 先生成可能的系统标识符前缀
+          const systemIdPrefix = `@gv_${id}_`;
+          
+          // 查找identifier以此前缀开头的变量
+          const possibleVariables = await variableRepo.find({
+            where: { 
+              identifier: Like(`${systemIdPrefix}%`) 
+            }
+          });
+          
+          if (possibleVariables.length > 0) {
+            // 找到了匹配的变量，使用第一个
+            variable = possibleVariables[0];
+            console.log(`[VariableService] 通过系统标识符前缀找到变量: ${variable.id}`);
+          }
+        }
+      } else {
+        // 可能是其他格式，比如旧格式的自定义ID
+        console.log(`[VariableService] 非UUID格式的ID: ${id}, 尝试模糊查询...`);
+        
+        // 尝试查询任何字段匹配此ID的变量
+        try {
+          variable = await variableRepo.findOne({
+            where: [
+              { id: Like(`%${id}%`) },
+              { entityId: Like(`%${id}%`) }
+            ]
+          });
+          
+          if (variable) {
+            console.log(`[VariableService] 通过模糊查询找到变量: ${variable.id}`);
+          }
+        } catch (err) {
+          console.error(`[VariableService] 模糊查询出错:`, err);
+        }
+      }
+    }
+    
+    // 如果所有尝试都失败，抛出错误
+    if (!variable) {
+      console.error(`[VariableService] 无法找到变量: ${id}`);
       throw new Error(`变量不存在: ${id}`);
     }
     
@@ -133,26 +204,33 @@ export class VariableService {
     // 确保有entityId，使用时间戳作为唯一标识
     const entityId = variableData.entityId || `${new Date().getTime()}`;
     
+    // 确保有fieldname字段，自定义变量默认为'value'
+    const fieldname = variableData.fieldname || 'value';
+    
+    // 生成数据库ID
+    const dbId = this.identifierFormatter.formatDatabaseId('custom', entityId, fieldname);
+    
     // 创建新的自定义变量
     const newVariable = variableRepo.create({
       ...variableData,
+      id: dbId, // 使用新的ID格式
       entityId, // 确保有entityId
+      fieldname, // 确保有fieldname
       type: VariableType.CUSTOM,
       source: {
-        id: 'custom',
-        name: '自定义变量',
+        id: entityId,
+        name: variableData.name, // 使用变量名称作为源名称
         type: 'custom'
       },
       // 使用新的标识符格式
-      identifier: this.identifierFormatter.formatIdentifier('custom', variableData.name, 'value', entityId)
+      identifier: this.identifierFormatter.formatIdentifier('custom', variableData.name, fieldname, entityId)
     });
     
     // 设置displayIdentifier字段，用于UI显示
-    // 关键修复: 使用变量的名称而不是固定的source.name
     newVariable.displayIdentifier = this.identifierFormatter.formatDisplayIdentifier(
       'custom', 
       variableData.name, // 使用变量的实际名称
-      'value', 
+      fieldname, 
       entityId
     );
     
@@ -245,55 +323,79 @@ export class VariableService {
   
   /**
    * 通过系统标识符获取变量
-   * 支持格式: @gv_UUID_field
+   * 支持格式: @gv_{type}_{entityId}_{field}-=
    * @param identifier 系统标识符
    * @returns 变量对象，如果不存在则返回null
    */
   public async getVariableBySystemIdentifier(identifier: string): Promise<Variable | null> {
     try {
-      // 检查标识符格式
-      const match = identifier.match(/@gv_([a-zA-Z0-9\-]+)_([a-zA-Z0-9_]+)/);
-      if (!match) {
-        console.warn(`无效的系统标识符格式: ${identifier}`);
-        return null;
-      }
-      
-      const uuid = match[1];
-      const field = match[2];
-      
-      console.log(`解析系统标识符: ${identifier} -> uuid=${uuid}, field=${field}`);
-      
-      // 1. 从数据库查找
-      const variableRepo = AppDataSource.getRepository(Variable);
-      const variable = await variableRepo.findOne({ 
-        where: { 
-          id: uuid,  // 匹配UUID
-          name: field // 匹配字段名
-        } 
-      });
-      
-      if (variable) {
-        console.log(`在数据库中找到变量: ${variable.id} (${variable.name})`);
-        return variable;
-      }
-      
-      // 2. 从变量源中查找
-      try {
-        // 使用注册表的方法获取带有UUID的变量
-        const variables = await this.sourceRegistry.getVariablesByUUID(uuid);
-        
-        // 查找匹配字段的变量
-        const matchingVariable = variables.find(v => v.name === field);
-        if (matchingVariable) {
-          console.log(`在变量源中找到变量: ${matchingVariable.id} (${matchingVariable.name})`);
-          return matchingVariable;
+      // 检查是否是v3.0格式的标识符
+      if (identifier.startsWith('@gv_') && identifier.endsWith('-=')) {
+        try {
+          // 使用IdentifierFormatterService提取数据库ID
+          const dbId = this.identifierFormatter.extractDatabaseIdFromIdentifier(identifier);
+          
+          console.log(`[VariableService] 从系统标识符提取数据库ID: ${identifier} -> ${dbId}`);
+          
+          // 从数据库查找
+          const variableRepo = AppDataSource.getRepository(Variable);
+          const variable = await variableRepo.findOne({ 
+            where: { id: dbId }
+          });
+          
+          if (variable) {
+            console.log(`在数据库中找到变量: ${variable.id} (${variable.name})`);
+            return variable;
+          }
+          
+          // 如果在数据库中未找到，可能是动态变量
+          console.log(`数据库中未找到ID为 ${dbId} 的变量，尝试从变量源获取...`);
+        } catch (error) {
+          console.error(`[VariableService] 解析v3.0系统标识符失败: ${identifier}`, error);
+          // 继续尝试其他格式
         }
-      } catch (error) {
-        console.error(`从变量源获取UUID变量失败:`, error);
-        // 继续其他查找方式
       }
       
-      // 3. 通过标识符直接查找
+      // 检查是否是v2.x格式的标识符 @gv_UUID_field
+      const v2Match = identifier.match(/@gv_([a-zA-Z0-9\-]+)_([a-zA-Z0-9_]+)/);
+      if (v2Match) {
+        const uuid = v2Match[1];
+        const field = v2Match[2];
+        
+        console.log(`解析v2.x系统标识符: ${identifier} -> uuid=${uuid}, field=${field}`);
+        
+        // 从数据库查找
+        const variableRepo = AppDataSource.getRepository(Variable);
+        const variable = await variableRepo.findOne({ 
+          where: { 
+            entityId: uuid,
+            fieldname: field
+          } 
+        });
+        
+        if (variable) {
+          console.log(`在数据库中找到变量: ${variable.id} (${variable.name})`);
+          return variable;
+        }
+        
+        // 从变量源中查找
+        try {
+          // 使用注册表的方法获取带有UUID的变量
+          const variables = await this.sourceRegistry.getVariablesByUUID(uuid);
+          
+          // 查找匹配字段的变量
+          const matchingVariable = variables.find(v => v.name === field);
+          if (matchingVariable) {
+            console.log(`在变量源中找到变量: ${matchingVariable.id} (${matchingVariable.name})`);
+            return matchingVariable;
+          }
+        } catch (error) {
+          console.error(`从变量源获取UUID变量失败:`, error);
+          // 继续其他查找方式
+        }
+      }
+      
+      // 通过标识符直接查找
       const allVariables = await this.getVariables();
       const matchByIdentifier = allVariables.find(v => v.identifier === identifier);
       

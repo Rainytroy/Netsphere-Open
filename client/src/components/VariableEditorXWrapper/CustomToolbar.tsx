@@ -11,13 +11,13 @@ interface CustomToolbarProps {
 }
 
 /**
- * 自定义工具栏组件
- * 支持变量插入、预览和刷新功能
+ * 自定义工具栏组件 - v3.0版本
+ * 支持变量插入、预览和更新标识符功能
  */
 const CustomToolbar: React.FC<CustomToolbarProps> = ({
   onInsertVariable,
   onShowPreview,
-  onRefreshVariables,
+  onRefreshVariables, // 实际上是更新标识符功能
   config
 }) => {
   // 转换配置项

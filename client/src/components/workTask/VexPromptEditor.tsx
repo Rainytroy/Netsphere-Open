@@ -61,19 +61,33 @@ const VexPromptEditor = forwardRef<VexPromptEditorRef, VexPromptEditorProps>((pr
     };
   }, []);
   
-  // 转换变量格式：从旧版变量格式转换为VEX变量格式
+  // 转换变量格式：从旧版变量格式转换为VEX变量格式(v3.0)
   const convertToVexVariable = (variable: any): VariableData => {
+    const type = variable.type || variable.source?.type || 'custom';
+    const id = variable.id || variable.sourceId || '';
+    const field = variable.field || variable.name || '';
+    
+    // 生成v3.0格式的标识符，用于日志记录
+    const v3Identifier = `@gv_${type}_${id}_${field}-=`;
+    console.log(`[v3.0 VexPromptEditor] 转换变量: 类型=${type}, ID=${id}, 字段=${field}`);
+    console.log(`[v3.0 VexPromptEditor] 生成标识符: ${v3Identifier}`);
+    
     return {
-      id: variable.id || variable.sourceId || '',
-      field: variable.field || variable.name || '',
+      id,
+      field,
       sourceName: variable.sourceName || variable.source?.name || 'Unknown',
-      sourceType: variable.type || variable.source?.type || 'custom',
+      sourceType: type,
       value: variable.value || '',
       displayIdentifier: variable.displayIdentifier,
       
-      // 不在变量参数中存在时，通过getter自动生成
+      // v3.0格式：@gv_{type}_{entityId}_{field}-=
       get identifier() {
-        return `@gv_${this.id}_${this.field}`;
+        return `@gv_${this.sourceType}_${this.id}_${this.field}-=`;
+      },
+      
+      // 添加type getter用于v3.0格式
+      get type() {
+        return this.sourceType;
       }
     };
   };

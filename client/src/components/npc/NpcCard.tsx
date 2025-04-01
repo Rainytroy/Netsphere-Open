@@ -26,9 +26,31 @@ const NpcCard: React.FC<NpcCardProps> = ({ npc, onDelete, onClick }) => {
     setDeleteModalVisible(true);
   };
   
-  // 处理删除确认
-  const handleDelete = () => {
+  // 处理删除确认 - 带参数版本，用于内部处理
+  const handleDeleteWithEvent = (e: React.MouseEvent) => {
+    // 为安全起见，再次阻止事件冒泡
+    if (e) {
+      e.stopPropagation();
+    }
+    
+    // 执行删除操作
     onDelete(npc.id);
+    
+    // 关闭确认对话框
+    setDeleteModalVisible(false);
+    
+    // 阻止后续可能的默认行为
+    if (e) {
+      e.preventDefault();
+    }
+  };
+  
+  // 处理删除确认 - 无参数版本，用于传递给Modal
+  const handleDelete = () => {
+    // 执行删除操作
+    onDelete(npc.id);
+    
+    // 关闭确认对话框
     setDeleteModalVisible(false);
   };
   

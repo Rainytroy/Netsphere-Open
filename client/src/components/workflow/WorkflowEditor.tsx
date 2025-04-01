@@ -1,10 +1,11 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { Button, Card, message, Modal } from 'antd';
+import { MenuUnfoldOutlined } from '@ant-design/icons';
 import CardSelector from './CardSelector';
 import FlowCanvas from './FlowCanvas';
 import { Workflow, CreateWorkflowParams } from '../../services/workflowService';
 import WorkflowToolbar from './WorkflowToolbar';
-import { WorkflowEditorProvider, useWorkflowEditor } from './WorkflowEditorContext';
+import { WorkflowEditorProvider, useWorkflowEditor, CardPanelMode } from './WorkflowEditorContext';
 import { defaultProcessCards } from './defaultCards';
 
 interface WorkflowEditorProps {
@@ -29,10 +30,14 @@ const WorkflowEditorContent: React.FC<WorkflowEditorProps> = ({
   const {
     name,
     setName,
+    description,
+    setDescription,
     isEditingName,
     setIsEditingName,
     cardPanelVisible,
     toggleCardPanel,
+    cardPanelMode,
+    setCardPanelMode,
     nodes,
     edges,
     handleNodesChange,
@@ -41,10 +46,22 @@ const WorkflowEditorContent: React.FC<WorkflowEditorProps> = ({
     prepareFormData,
     selectedCardCounts,
     taskCards,
-    saveWorkflow
+    saveWorkflow,
+    savePhase,
+    saveMessage
   } = useWorkflowEditor();
 
-  // 处理保存
+  // 处理卡片面板收起
+  const handleCollapsePanel = () => {
+    setCardPanelMode(CardPanelMode.MINIMIZED);
+  };
+  
+  // 处理最小化卡片面板展开
+  const handleExpandPanel = () => {
+    setCardPanelMode(CardPanelMode.EXPANDED);
+  };
+
+  // 处理保存 - 使用Context中的prepareFormData方法，该方法已移除description参数
   const handleSave = async () => {
     try {
       const data = prepareFormData();
@@ -63,95 +80,19 @@ const WorkflowEditorContent: React.FC<WorkflowEditorProps> = ({
   // 保存按钮加载状态
   const [saveLoading, setSaveLoading] = useState(false);
   
-  // 处理退出和返回
-  const handleExitOrBack = () => {
-    // 创建并保存Modal实例引用
-    const instance = modal.confirm({
-      title: '退出工作流编辑器',
-      content: '请选择退出方式',
-      okText: saveLoading ? '保存中...' : '保存并退出',
-      cancelText: '直接退出',
-      okButtonProps: { 
-        type: 'primary',
-        loading: saveLoading,
-        disabled: saveLoading
-      },
-      cancelButtonProps: { 
-        type: 'default',
-        disabled: saveLoading 
-      },
-      onOk: async () => {
-        // 阻止Modal自动关闭
-        return new Promise(async (resolve, reject) => {
-          try {
-            // 设置保存按钮为加载状态
-            setSaveLoading(true);
-            // 更新Modal按钮状态
-            instance.update({
-              okButtonProps: {
-                loading: true,
-                disabled: true
-              },
-              okText: '保存中...',
-              cancelButtonProps: {
-                disabled: true
-              }
-            });
-            
-            // 保存工作流
-            const data = prepareFormData();
-            await onSave(data);
-            
-            // 更新按钮文本，表示已保存成功
-            instance.update({
-              okText: '保存成功!',
-              okButtonProps: {
-                loading: false,
-                disabled: true
-              }
-            });
-            
-            // 延迟500ms后自动关闭弹窗并退出
-            setTimeout(() => {
-              // 关闭弹窗
-              instance.destroy();
-              // 返回列表页
-              onBack();
-              // 重置状态
-              setSaveLoading(false);
-            }, 500);
-          } catch (error) {
-            console.error('[WorkflowEditor] 保存并退出失败:', error);
-            message.error('保存失败，请重试');
-            // 恢复按钮状态
-            instance.update({
-              okButtonProps: {
-                loading: false,
-                disabled: false
-              },
-              okText: '保存并退出',
-              cancelButtonProps: {
-                disabled: false
-              }
-            });
-            setSaveLoading(false);
-            // 允许Modal可关闭
-            resolve(undefined);
-          }
-        });
-      },
-      onCancel: () => {
-        if (!saveLoading) {
-          // 直接退出不保存
-          onBack();
-        }
-      },
-      // 添加一个自定义按钮用于关闭弹窗
-      closeIcon: true
-    });
-    
-    // 保存Modal引用
-    modalRef.current = instance;
+  // 处理退出和返回 - 自动保存并返回
+  const handleExitOrBack = async () => {
+    try {
+      // 保存工作流 - 使用Context中的prepareFormData方法
+      const data = prepareFormData();
+      await onSave(data);
+      
+      // 保存后直接返回列表页
+      onBack();
+    } catch (error) {
+      console.error('[WorkflowEditor] 保存并退出失败:', error);
+      message.error('保存失败，请重试');
+    }
   };
 
   // 处理使用
@@ -182,13 +123,15 @@ const WorkflowEditorContent: React.FC<WorkflowEditorProps> = ({
         setName={setName}
         setIsEditingName={setIsEditingName}
         onBack={handleExitOrBack}  // 将onBack也改为使用handleExitOrBack，这样返回按钮也会显示确认对话框
-        onSave={handleSave}
+        onSave={saveWorkflow} // 使用Context中的saveWorkflow，它会更新保存状态
         onUse={handleUse}
         onExit={handleExitOrBack}
         toggleCardPanel={toggleCardPanel}
         cardPanelVisible={cardPanelVisible}
         loading={loading}
         isNewWorkflow={!workflow}
+        savePhase={savePhase} // 传递保存阶段状态
+        saveMessage={saveMessage} // 传递保存消息
       />
       
       {/* 主编辑区域 */}
@@ -209,11 +152,38 @@ const WorkflowEditorContent: React.FC<WorkflowEditorProps> = ({
             onNodesChange={handleNodesChange}
             onEdgesChange={handleEdgesChange}
             onSaveWorkflow={saveWorkflow}
+            // 添加编辑器状态更新函数
+            onUpdateEditorState={(field: string, value: any) => {
+              console.log(`[WorkflowEditor] 更新编辑器状态 ${field}:`, value);
+              
+              // 根据字段类型调用相应的更新函数
+              switch (field) {
+                case 'name':
+                  if (typeof value === 'string') {
+                    setName(value);
+                  }
+                  break;
+                  
+                case 'description':
+                  // 这是由起点卡编辑时更新的
+                  // 使用context中的setDescription函数
+                  if (typeof setDescription === 'function') {
+                    console.log('[WorkflowEditor] 使用setDescription更新description值:', value);
+                    setDescription(value);
+                  } else {
+                    console.warn('[WorkflowEditor] setDescription函数不可用，无法更新description');
+                  }
+                  break;
+                  
+                default:
+                  console.warn(`[WorkflowEditor] 未知的状态字段: ${field}`);
+              }
+            }}
           />
         </div>
         
         {/* 悬浮层 - 卡片选择区域 */}
-        {cardPanelVisible && (
+        {cardPanelMode === CardPanelMode.EXPANDED && (
           <div style={{ 
             position: 'absolute',
             top: 24,
@@ -243,6 +213,7 @@ const WorkflowEditorContent: React.FC<WorkflowEditorProps> = ({
             >
               <CardSelector 
                 onCardSelect={handleCardSelect}
+                onCollapse={handleCollapsePanel}
                 processCards={defaultProcessCards.map(card => ({
                   ...card,
                   usageCount: selectedCardCounts[card.id] || 0
@@ -253,6 +224,27 @@ const WorkflowEditorContent: React.FC<WorkflowEditorProps> = ({
                 }))}
               />
             </Card>
+          </div>
+        )}
+        
+        {/* 最小化后的卡片面板按钮 */}
+        {cardPanelMode === CardPanelMode.MINIMIZED && (
+          <div 
+            style={{ 
+              position: 'absolute',
+              top: 24,
+              left: 24,
+              background: 'white',
+              boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)',
+              borderRadius: '0 8px 8px 0',
+              zIndex: 5,
+              padding: '12px',
+              cursor: 'pointer'
+            }}
+            onClick={handleExpandPanel}
+            title="展开卡片选择器"
+          >
+            <MenuUnfoldOutlined style={{ fontSize: '20px' }} />
           </div>
         )}
       </div>
