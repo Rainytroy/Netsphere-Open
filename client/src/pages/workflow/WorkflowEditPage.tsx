@@ -59,9 +59,8 @@ const WorkflowEditPage: React.FC = () => {
       
       console.log('[WorkflowEditPage] 处理后的metadata:', data.metadata);
       
-      // 更新工作流
+      // 更新工作流 - 不显示提示信息
       await workflowService.updateWorkflow(id, data);
-      message.success('工作流保存成功');
       
       // 关键修改：不重新加载数据，只更新本地状态
       // 这样可以避免画布重置问题
@@ -94,8 +93,11 @@ const WorkflowEditPage: React.FC = () => {
     navigate('/workflow');
   };
   
-  // 跳转到使用页面
+  // 跳转到使用页面 - 纯粹的跳转操作，不再包含保存逻辑
   const handleUse = () => {
+    if (!id) return;
+    
+    console.log('[WorkflowEditPage] 跳转到工作流使用页面');
     navigate(`/workflow/${id}/use`);
   };
   

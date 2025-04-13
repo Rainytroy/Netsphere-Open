@@ -37,6 +37,8 @@ import VariableEditorXDemo from './pages/demo/variable-editor-x/DemoPage';
 import VariableEditorWrapperDemo from './pages/demo/variable-editor-wrapper-demo';
 // 执行状态指示器演示
 import ExecutionStatusDemo from './pages/demo/execution-status-demo';
+// 赋值节点演示页面
+import AssignmentNodeDemo from './pages/workflow/demo/AssignmentNodeDemo';
 import { ENABLE_WORKFLOW } from './config';
 
 function App() {
@@ -86,6 +88,7 @@ function App() {
             <Route path="/demo/variable-editor-x" element={<VariableEditorXDemo />} />
             <Route path="/demo/variable-editor-wrapper" element={<VariableEditorWrapperDemo />} />
             <Route path="/demo/execution-status" element={<ExecutionStatusDemo />} />
+            <Route path="/demo/assignment-node" element={<AssignmentNodeDemo />} />
           </Route>
         </Routes>
       </Router>

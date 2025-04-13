@@ -33,7 +33,7 @@ export class Workflow {
     version: number;
   };
 
-  @Column({ default: false })
+  @Column({ default: true })
   isActive: boolean;
 
   @CreateDateColumn()

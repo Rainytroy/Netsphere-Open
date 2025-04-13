@@ -135,12 +135,19 @@ export const WorkflowEditorProvider: React.FC<WorkflowEditorProviderProps> = ({
   const handleNodesChange = useCallback((updatedNodes: Node[]) => {
     console.log('[WorkflowEditorContext] handleNodesChange 收到更新:', updatedNodes.length, '个节点');
     
+    // 比较当前节点数量和更新后的节点数量
+    const nodeCountDiff = nodes.length - updatedNodes.length;
+    if (nodeCountDiff > 0) {
+      console.log(`[WorkflowEditorContext] 检测到删除了 ${nodeCountDiff} 个节点`);
+    }
+    
+    // 更新节点状态
     setNodes(updatedNodes);
     
     // 更新卡片使用计数
     const counts = calculateNodeCounts(updatedNodes);
     setSelectedCardCounts(counts);
-  }, []);
+  }, [nodes.length]);
   
   // 处理边变化
   const handleEdgesChange = useCallback((updatedEdges: Edge[]) => {
@@ -170,7 +177,7 @@ export const WorkflowEditorProvider: React.FC<WorkflowEditorProviderProps> = ({
   // 用户现在需要手动添加起点卡
   // 注释: 原来的代码在这里自动创建起点卡并保存，现已移除
   
-  // 处理卡片选择 - 优化以确保与拖放功能一致
+  // 处理卡片选择
   const handleCardSelect = useCallback((card: CardData) => {
     console.log('[WorkflowEditorContext] 点击选择卡片:', card.title, 'ID:', card.id);
     

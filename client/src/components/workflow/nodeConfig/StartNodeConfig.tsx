@@ -1,19 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Form, Input, Alert, Typography, Spin, Button, message } from 'antd';
+import { Form, Input, Typography, Spin, message, Switch, Space, Alert, Tag } from 'antd';
+import { CreditCardOutlined } from '@ant-design/icons';
 import { NodeConfigProps } from './NodeConfigInterface';
 import VexWorkflowEditor, { VexWorkflowEditorRef } from '../VexWorkflowEditor';
-import { variableService, VariableType } from '../../../services/variableService';
+import { variableService } from '../../../services/variableService';
 import { workflowVariableService } from '../../../services/workflowVariableService';
 import { workflowService } from '../../../services/workflowService';
 import { useWorkflowEditor } from '../WorkflowEditorContext';
 import { useVariableParser } from '../../../pages/demo/variable-editor-x/hooks/useVariableParser';
+import IdentifierFormatterService from '../../../services/IdentifierFormatterService';
 
-const { TextArea } = Input;
 const { Text } = Typography;
 
 /**
  * 起点卡配置组件
- * 允许用户配置工作流的起始提示文本
+ * 允许用户配置工作流的起始提示文本和启用状态
  */
 const StartNodeConfig: React.FC<NodeConfigProps> = ({
   nodeId,
@@ -27,6 +28,9 @@ const StartNodeConfig: React.FC<NodeConfigProps> = ({
   const [loading, setLoading] = useState(true);
   const [editorContent, setEditorContent] = useState<string>(initialConfig?.promptText || '这是工作流的起点');
   
+  // 工作流启用状态 - 默认为启用
+  const [isActive, setIsActive] = useState<boolean>(true);
+  
   // 创建一个ref用于访问VexWorkflowEditor组件实例
   const editorRef = useRef<VexWorkflowEditorRef>(null);
   
@@ -35,6 +39,40 @@ const StartNodeConfig: React.FC<NodeConfigProps> = ({
   
   // 使用状态跟踪是否已经设置过初始内容，避免重复设置
   const [contentInitialized, setContentInitialized] = useState(false);
+  
+  // 获取工作流编辑器上下文
+  const workflowContext = useWorkflowEditor();
+  
+  // 初始化工作流启用状态
+  useEffect(() => {
+    const loadWorkflowStatus = async () => {
+      try {
+        // 尝试获取工作流ID
+        const formData = workflowContext?.prepareFormData?.() || {};
+        let workflowId = '';
+        
+        if (formData && typeof formData === 'object' && 'id' in formData && formData.id) {
+          workflowId = String(formData.id);
+          console.log(`[StartNodeConfig] 获取到工作流ID: ${workflowId}, 正在加载启用状态...`);
+          
+          // 获取工作流详情以获取isActive状态
+          if (workflowId) {
+            const workflow = await workflowService.getWorkflow(workflowId);
+            if (workflow) {
+              setIsActive(workflow.isActive);
+              console.log(`[StartNodeConfig] 工作流启用状态: ${workflow.isActive}`);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[StartNodeConfig] 加载工作流启用状态失败:', error);
+        // 默认为启用状态
+        setIsActive(true);
+      }
+    };
+    
+    loadWorkflowStatus();
+  }, [workflowContext]);
   
   // 分离内容初始化和焦点处理，确保只发生一次内容初始化
   useEffect(() => {
@@ -128,32 +166,25 @@ const StartNodeConfig: React.FC<NodeConfigProps> = ({
     });
   }, [form, initialConfig]);
   
-  // 处理内容变化 - 优化以减少不必要的日志和状态更新
+  // 处理内容变化
   const handleEditorChange = (value: string) => {
-    // 只有当内容真正变化时才更新状态和记录
+    // 只有当内容真正变化时才更新状态
     if (value !== editorContent) {
-      // 更新本地state
+      // 更新本地state和表单值
       setEditorContent(value);
-      
-      // 同时更新表单值，但避免不必要的重渲染
       form.setFieldsValue({ promptText: value });
       
-      // 调试输出 - 使用更具体的标识符
-      console.log(`[StartNodeConfig:${nodeId}] 编辑器内容更新`);
-      
-      // 直接更新工作流编辑器状态中的描述字段（实时同步）
+      // 更新工作流编辑器状态中的描述字段（实时同步）
       if (updateEditorState) {
-        console.log(`[StartNodeConfig] 更新工作流描述字段:`, {
-          contentLength: value?.length || 0,
-          preview: value?.substring(0, 30) + '...'
-        });
         updateEditorState('description', value);
       }
     }
   };
   
-  // 获取工作流编辑器上下文
-  const workflowContext = useWorkflowEditor();
+  // 处理工作流启用状态变化
+  const handleActiveChange = (checked: boolean) => {
+    setIsActive(checked);
+  };
   
   // 优化表单提交处理，确保正确获取和提交内容
   const handleFormSubmit = async (values: any) => {
@@ -167,10 +198,8 @@ const StartNodeConfig: React.FC<NodeConfigProps> = ({
       values.promptText = values.promptText || '';
     }
     
-    // 输出调试信息
-    console.log(`[StartNodeConfig:${nodeId}] 表单提交内容:`, values.promptText);
-    console.log(`[StartNodeConfig:${nodeId}] 编辑器内容:`, finalPromptText);
-    console.log(`[StartNodeConfig:${nodeId}] 最终使用内容长度:`, finalPromptText?.length || 0);
+    // 简单调试日志
+    console.log(`[StartNodeConfig] 保存内容，启用状态: ${isActive}`);
     
     // 构建最终配置 - 始终使用editorContent而不是表单值
     const config = {
@@ -190,31 +219,18 @@ const StartNodeConfig: React.FC<NodeConfigProps> = ({
         const richContent = editorRef.current.getRichContent();
         const rawText = richContent.rawText;
         
-        // 记录包含系统标识符的原始文本
-        console.log(`[StartNodeConfig:${nodeId}] 原始文本(含变量标识符):`, {
-          rawTextLength: rawText?.length || 0,
-          rawTextPreview: rawText?.substring(0, 50) + '...'
-        });
-        
-        // 第二步：使用变量解析器解析变量标识符
+        // 使用变量解析器解析变量标识符
         try {
-          // 直接使用parseText方法解析原始文本
+          // 解析原始文本
           const resolvedContent = await parseText(rawText);
           if (resolvedContent) {
-            console.log(`[StartNodeConfig:${nodeId}] 成功解析变量内容:`, {
-              resolvedLength: resolvedContent.length,
-              resolvedPreview: resolvedContent.substring(0, 50) + '...'
-            });
-            // 使用解析后的内容替换parsedContent
             parsedContent = resolvedContent;
           } else {
-            console.warn(`[StartNodeConfig:${nodeId}] 解析内容为空，将使用原始文本`);
             // 如果解析失败，回退到使用原始文本
             parsedContent = rawText;
           }
         } catch (resolveError) {
-          console.error(`[StartNodeConfig:${nodeId}] 解析变量标识符错误:`, resolveError);
-          // 如果解析过程出错，回退到使用原始文本
+          console.error(`[StartNodeConfig] 解析变量标识符错误:`, resolveError);
           parsedContent = rawText;
         }
       }
@@ -223,65 +239,9 @@ const StartNodeConfig: React.FC<NodeConfigProps> = ({
       const formData = workflowContext?.prepareFormData?.() || {};
       let workflowId = '';
       
-      // 记录详细的formData信息，帮助调试
-      console.log('[StartNodeConfig] prepareFormData结果:', {
-        hasFormData: !!formData,
-        formDataType: typeof formData,
-        formDataKeys: formData ? Object.keys(formData) : [],
-        hasId: formData && 'id' in formData,
-        idValue: formData && 'id' in formData ? formData.id : 'undefined'
-      });
-      
-      // 优先使用表单数据中的ID，这通常是正确的UUID格式
-      if (formData && typeof formData === 'object') {
-        // 如果存在id属性则使用
-        if ('id' in formData && formData.id) {
-          workflowId = String(formData.id);
-          console.log(`[StartNodeConfig] 从formData获取到工作流ID: ${workflowId}`);
-        }
-      }
-      
-      // 我们已经尝试从prepareFormData获取了ID，但如果没找到，可以查看表单数据中是否有其他线索
-      if (!workflowId && workflowContext) {
-        // 记录实际可用的上下文属性，用于调试
-        console.log(`[StartNodeConfig] 工作流上下文属性:`, Object.keys(workflowContext));
-        
-        // 通过formData进一步探测
-        try {
-          const rawFormData = workflowContext.prepareFormData?.();
-          if (rawFormData) {
-            console.log(`[StartNodeConfig] 完整formData:`, rawFormData);
-            
-            // 递归搜索对象中可能存在的id字段
-            const findId = (obj: any, depth = 0): string | null => {
-              if (!obj || depth > 3) return null; // 限制递归深度
-              if (typeof obj !== 'object') return null;
-              
-              // 直接检查是否有id字段
-              if ('id' in obj && typeof obj.id === 'string' && obj.id) {
-                return obj.id;
-              }
-              
-              // 递归检查所有子对象
-              for (const key in obj) {
-                if (typeof obj[key] === 'object') {
-                  const foundId = findId(obj[key], depth + 1);
-                  if (foundId) return foundId;
-                }
-              }
-              
-              return null;
-            };
-            
-            const deepSearchId = findId(rawFormData);
-            if (deepSearchId) {
-              workflowId = deepSearchId;
-              console.log(`[StartNodeConfig] 通过深度搜索找到ID: ${workflowId}`);
-            }
-          }
-        } catch (idErr) {
-          console.error(`[StartNodeConfig] 尝试深度搜索ID时出错:`, idErr);
-        }
+      // 获取工作流ID
+      if (formData && typeof formData === 'object' && 'id' in formData && formData.id) {
+        workflowId = String(formData.id);
       }
       
       // 最终检查，需要有效的UUID格式工作流ID
@@ -298,6 +258,7 @@ const StartNodeConfig: React.FC<NodeConfigProps> = ({
         nodeId,
         workflowId,
         workflowName,
+        isActive,
         contentLength: parsedContent?.length || 0,
         contentPreview: parsedContent?.substring(0, 50) + '...'
       });
@@ -306,64 +267,28 @@ const StartNodeConfig: React.FC<NodeConfigProps> = ({
         try {
           // 显示更新中提示
           const updateMessageKey = `update-workflow-${Date.now()}`;
-          message.loading({ content: '正在保存工作流描述...', key: updateMessageKey, duration: 0 });
+          message.loading({ content: '正在保存工作流设置...', key: updateMessageKey, duration: 0 });
           
-          console.log(`[StartNodeConfig] 开始更新工作流描述 - 详细信息:`, {
-            workflowId,
-            workflowName,
-            contentLength: parsedContent?.length || 0,
-            contentPreview: parsedContent?.substring(0, 50) + '...',
-            containsVariableId: parsedContent?.includes('@gv_') || false,
-            isResolved: !parsedContent?.includes('@gv_'),
-            timestamp: new Date().toISOString()
-          });
-
           // 1. 更新工作流的description变量
-          console.log(`[StartNodeConfig] 调用 workflowVariableService.createOrUpdateWorkflowVariable...`);
-          const varUpdateStart = Date.now();
-          const varResult = await workflowVariableService.createOrUpdateWorkflowVariable(
+          await workflowVariableService.createOrUpdateWorkflowVariable(
             workflowId,
             workflowName,
-            'description', // 变量字段名
-            parsedContent // 使用解析后的内容
+            'description',
+            parsedContent
           );
-          const varUpdateDuration = Date.now() - varUpdateStart;
-          console.log(`[StartNodeConfig] 变量更新完成，耗时: ${varUpdateDuration}ms, 结果:`, varResult);
           
-          // 2. 同时更新工作流对象自身的description属性
-          console.log(`[StartNodeConfig] 调用 workflowService.updateWorkflow 更新工作流 ${workflowId} 的 description 属性...`);
-          const wfUpdateStart = Date.now();
-          
-          const updateResult = await workflowService.updateWorkflow(workflowId, {
-            description: parsedContent
+          // 2. 更新工作流的isActive状态和description属性
+          await workflowService.updateWorkflow(workflowId, {
+            description: parsedContent,
+            isActive: isActive
           });
           
-          const wfUpdateDuration = Date.now() - wfUpdateStart;
-          console.log(`[StartNodeConfig] 工作流对象更新完成，耗时: ${wfUpdateDuration}ms, 结果:`, updateResult);
-          
-          // 验证更新是否成功
-          if (updateResult.description !== parsedContent) {
-            console.warn(`[StartNodeConfig] ⚠️ 警告: 工作流描述可能未正确更新!`, {
-              expectedLength: parsedContent?.length || 0,
-              actualLength: updateResult.description?.length || 0,
-              expected: parsedContent?.substring(0, 100) + '...',
-              actual: updateResult.description?.substring(0, 100) + '...'
-            });
-            
-            // 更新警告
-            message.warning({ 
-              content: '工作流描述已保存，但可能需要重新检查内容', 
-              key: updateMessageKey,
-              duration: 3
-            });
-          } else {
-            // 更新成功提示
-            message.success({ 
-              content: '工作流描述保存成功', 
-              key: updateMessageKey,
-              duration: 2
-            });
-          }
+          // 更新成功提示
+          message.success({ 
+            content: '工作流设置保存成功', 
+            key: updateMessageKey,
+            duration: 2
+          });
         } catch (error) {
           // 将unknown类型的错误转换为具有必要属性的类型
           const typedError = error as { 
@@ -377,7 +302,7 @@ const StartNodeConfig: React.FC<NodeConfigProps> = ({
           };
           
           // 记录详细错误信息
-          console.error('[StartNodeConfig] ❌ 工作流描述更新失败:', error);
+          console.error('[StartNodeConfig] ❌ 工作流更新失败:', error);
           console.error('[StartNodeConfig] 错误详情:', {
             message: typedError.message || '未知错误',
             stack: typedError.stack?.substring(0, 200) || '无堆栈信息',
@@ -388,7 +313,7 @@ const StartNodeConfig: React.FC<NodeConfigProps> = ({
           
           // 显示错误消息给用户
           message.error({
-            content: `保存工作流描述失败: ${typedError.message || '未知错误'}`,
+            content: `保存工作流设置失败: ${typedError.message || '未知错误'}`,
             duration: 5
           });
           
@@ -396,8 +321,8 @@ const StartNodeConfig: React.FC<NodeConfigProps> = ({
           console.log('[StartNodeConfig] 请查看浏览器控制台(F12)获取更多错误信息');
         }
       } else {
-        console.warn('[StartNodeConfig] 无法更新工作流描述，缺少工作流ID或名称');
-        message.warning('无法更新工作流描述，缺少工作流标识或名称');
+        console.warn('[StartNodeConfig] 无法更新工作流，缺少工作流ID或名称');
+        message.warning('无法更新工作流，缺少工作流标识或名称');
       }
     } catch (error) {
       console.error('[StartNodeConfig] 处理编辑器内容失败:', error);
@@ -412,6 +337,14 @@ const StartNodeConfig: React.FC<NodeConfigProps> = ({
       id={`node-config-form-${nodeId}`}
       onFinish={handleFormSubmit}
     >
+      <Alert
+        icon={<CreditCardOutlined />}
+        description="起点卡是工作流的开始，用于设置工作流的初始提示文本和状态。用户与工作流交互时将首先看到此卡片内容。"
+        type="info"
+        showIcon={true}
+        style={{ marginBottom: 16, background: '#f5f5f5', border: '1px solid #e8e8e8' }}
+      />
+      
       <Form.Item
         label="提示文本"
         name="promptText"
@@ -433,9 +366,70 @@ const StartNodeConfig: React.FC<NodeConfigProps> = ({
         )}
       </Form.Item>
 
-      {/* 移除变量引用提示，优化界面空间 */}
-
-      {/* 移除独立的保存按钮，使用Modal底部按钮统一保存 */}
+      {/* 添加工作流启用/禁用开关 */}
+      <Form.Item 
+        label="工作流状态" 
+        name="isActive"
+        help="控制工作流是否启用，关闭后工作流将不会被执行"
+      >
+        <Space>
+          <Switch 
+            checked={isActive} 
+            onChange={handleActiveChange} 
+            checkedChildren="启用" 
+            unCheckedChildren="禁用"
+          />
+          <Text type={isActive ? "success" : "secondary"}>
+            {isActive ? "工作流已启用" : "工作流已禁用"}
+          </Text>
+        </Space>
+      </Form.Item>
+      
+      {/* 变量应用区域 */}
+      <div 
+        style={{ 
+          background: '#f5f5f5', 
+          padding: '16px', 
+          borderRadius: '6px',
+          marginTop: '16px',
+          marginBottom: '16px',
+          border: '1px solid #e8e8e8'
+        }}
+      >
+        <Space>
+          <Tag
+            style={{
+              backgroundColor: '#F6FFED',
+              borderColor: '#52C41A',
+              color: '#52C41A',
+              fontSize: '12px',
+              fontWeight: 500,
+              padding: '4px 8px'
+            }}
+          >
+            {(() => {
+              // 获取工作流名称和ID
+              const workflowName = workflowContext?.name || '未命名工作流';
+              const formData = workflowContext?.prepareFormData?.() || {};
+              let workflowId = '';
+              
+              if (formData && typeof formData === 'object' && 'id' in formData && formData.id) {
+                workflowId = String(formData.id);
+              }
+              
+              // 生成显示标识符
+              if (workflowId) {
+                const shortId = workflowId.substring(0, 4);
+                return `@${workflowName}.startinput#${shortId}`;
+              }
+              
+              // 如果没有工作流ID，使用默认格式
+              return '@工作流名称.startinput#ID';
+            })()}
+          </Tag>
+          <Text>是工作流运行时，用户首先输入的内容</Text>
+        </Space>
+      </div>
     </Form>
   );
 };

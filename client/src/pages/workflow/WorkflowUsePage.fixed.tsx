@@ -20,7 +20,7 @@ import {
   StopOutlined, 
   DownloadOutlined 
 } from '@ant-design/icons';
-import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { workflowService, Workflow } from '../../services/workflowService';
 import { workflowVariableService } from '../../services/workflowVariableService';
 import ExecutionNodeCard from './components/ExecutionNodeCard';
@@ -44,8 +44,6 @@ const WorkflowUsePage: React.FC = () => {
   const [workflow, setWorkflow] = useState<Workflow | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRunning, setIsRunning] = useState(false);
-  const [isInitializing, setIsInitializing] = useState(false);
-  const [isInitialized, setIsInitialized] = useState(false);
   const [userInput, setUserInput] = useState('');
   
   // 执行引擎相关状态
@@ -54,7 +52,6 @@ const WorkflowUsePage: React.FC = () => {
   const [workflowVariables, setWorkflowVariables] = useState<Record<string, any>>({});
   const [executionId, setExecutionId] = useState<string>('');
   const [executionComplete, setExecutionComplete] = useState<boolean>(false);
-  const [workflowStructure, setWorkflowStructure] = useState<any>(null);
   
   // 加载工作流数据
   useEffect(() => {
@@ -166,13 +163,9 @@ const WorkflowUsePage: React.FC = () => {
     // 更新当前节点状态为执行中
     setCurrentNodeIndex(nodeIndex);
     updateNodeStatus(nodeId, 'executing');
-
-    // 添加警告日志，帮助追踪执行过程
-    console.log(`===== 正在执行节点: ${nodeId} (索引: ${nodeIndex}) =====`);
     
     // 获取节点信息
     const node = executionNodes[nodeIndex];
-    console.log(`节点类型: ${node.type}, 节点名称: ${node.name}, 下一个节点ID: ${node.nextNodeId || '无'}`);
     
     try {
       let output;
@@ -184,7 +177,7 @@ const WorkflowUsePage: React.FC = () => {
           output = await WorkflowEngine.executeStartNode();
           nextNodeId = node.nextNodeId;
           break;
-        case 'worktask':
+        case 'workTask':
           output = await WorkflowEngine.executeWorkTaskNode(node, updateNodeStatus);
           nextNodeId = node.nextNodeId;
           break;
@@ -192,7 +185,7 @@ const WorkflowUsePage: React.FC = () => {
           output = await WorkflowEngine.executeDisplayNode(node, updateNodeStatus, workflowVariables);
           nextNodeId = node.nextNodeId;
           break;
-        case 'assign':
+        case 'assignment':
           // 定义更新变量的回调函数
           const updateVariables = (newVars: Record<string, any>) => {
             setWorkflowVariables(newVars);
@@ -223,28 +216,13 @@ const WorkflowUsePage: React.FC = () => {
       // 更新节点状态为已完成
       updateNodeStatus(nodeId, 'completed', output);
       
-      console.log(`节点 ${nodeId} 执行完成，下一个节点ID: ${nextNodeId || '无'}`);
-      
       // 如果有下一个节点，继续执行
       if (nextNodeId) {
-        console.log(`将在500ms后执行下一个节点: ${nextNodeId}`);
         setTimeout(() => executeNode(nextNodeId), 500); // 给UI一个短暂的延迟
-      } else if (node.id === 'assign-1743734439584') {
-        // 特殊处理: 从赋值节点到最后一个显示节点的连接
-        const lastDisplayNode = executionNodes.find(n => n.id === 'display-1743739271268');
-        if (lastDisplayNode) {
-          console.log(`特殊处理: 从赋值节点连接到最后一个显示节点 ${lastDisplayNode.id}`);
-          setTimeout(() => executeNode(lastDisplayNode.id), 500);
-        } else {
-          setExecutionComplete(true);
-          setIsRunning(false);
-          console.log('工作流执行完成');
-        }
       } else {
         // 工作流执行完成
         setExecutionComplete(true);
         setIsRunning(false);
-        console.log('工作流执行完成');
       }
     } catch (error) {
       console.error(`节点 ${node.name} 执行失败:`, error);
@@ -252,59 +230,6 @@ const WorkflowUsePage: React.FC = () => {
       setIsRunning(false);
     }
   };
-  
-  // 使用location.key来监听路由变化
-  const location = useLocation();
-  
-  // 页面聚焦或路由变化时，清除缓存的工作流结构
-  useEffect(() => {
-    // 清除缓存，确保每次从编辑页面返回时都能获取最新结构
-    console.log('路由状态变化，清除缓存的工作流结构');
-    setWorkflowStructure(null);
-    setIsInitialized(false);
-  }, [location.key]);
-
-  // 预热工作流执行环境
-  useEffect(() => {
-    const preloadWorkflowEnvironment = async () => {
-      if (!id || !workflow || isInitialized || isInitializing) return;
-      
-      try {
-        setIsInitializing(true);
-        console.log('预热工作流执行环境...');
-        
-        // 提前获取工作流结构
-        const structure = await workflowService.getWorkflowStructure(id);
-        console.log('预加载 - 工作流结构:', structure);
-        
-        // 检查并验证结构
-        if (!structure.nodes || structure.nodes.length === 0) {
-          console.warn('预加载 - 工作流结构中没有节点数据');
-          return;
-        }
-        
-        // 预构建执行节点
-        const allNodes = WorkflowEngine.buildExecutionFlow(structure);
-        console.log('预加载 - 构建执行节点:', allNodes.length);
-        
-        // 保存工作流结构和预构建的节点（但不再缓存workflowStructure）
-        setExecutionNodes(allNodes);
-        console.log('预热 - 保存预构建执行节点:', allNodes.length);
-        
-        // 初始化完成
-        setIsInitialized(true);
-        console.log('工作流执行环境预热完成');
-      } catch (error) {
-        console.error('预热工作流执行环境失败:', error);
-        // 即使预热失败，也不阻止用户尝试运行
-        setIsInitialized(true);
-      } finally {
-        setIsInitializing(false);
-      }
-    };
-    
-    preloadWorkflowEnvironment();
-  }, [id, workflow, isInitialized, isInitializing]);
   
   // 运行工作流
   const handleRun = async () => {
@@ -331,48 +256,18 @@ const WorkflowUsePage: React.FC = () => {
         return;
       }
       
-      // 每次运行时强制从服务器获取最新工作流结构
-      console.log('正在从服务器获取最新工作流结构...');
+      // 获取工作流结构
       const structure = await workflowService.getWorkflowStructure(id);
       
-      // 清除缓存的工作流结构
-      setWorkflowStructure(null);
+      // 构建执行节点图
+      const nodes = WorkflowEngine.buildExecutionFlow(structure);
+      setExecutionNodes(nodes);
       
-      // 处理工作流结构数据，确保正确解析
-      console.log('工作流结构原始数据:', structure);
-      
-      // 检查是否有节点数据
-      if (!structure.nodes || structure.nodes.length === 0) {
-        message.error('工作流结构中没有节点数据');
-        setIsRunning(false);
-        return;
-      }
-      
-      // 输出所有节点类型，帮助调试
-      console.log('节点类型:', structure.nodes.map((n: any) => `${n.id}: ${n.type}`));
-      
-      // 构建所有执行节点
-      const allNodes = WorkflowEngine.buildExecutionFlow(structure);
-      console.log('构建的所有执行节点:', allNodes);
-      
-      // 直接使用所有节点来显示，这样我们可以看到所有节点而不仅是执行路径上的
-      console.log('使用所有节点进行渲染，数量:', allNodes.length);
-      setExecutionNodes(allNodes);
-      
-      // 查找起点卡
-      const startNode = allNodes.find(n => n.type === 'start');
-      console.log('找到起点卡:', startNode);
-      
+      // 开始执行，从起点卡开始
+      const startNode = nodes.find(n => n.type === 'start');
       if (startNode) {
-        // 使用setTimeout确保状态更新完成后再开始执行节点
-        // 这解决了首次运行可能卡住的问题
-        console.log('延迟100ms等待状态更新后开始执行');
-        setTimeout(async () => {
-          // 开始执行起点卡
-          await executeNode(startNode.id);
-        }, 100);
+        await executeNode(startNode.id);
       } else {
-        console.error('工作流中未找到起点卡，所有节点:', allNodes);
         message.error('工作流中未找到起点卡');
         setIsRunning(false);
       }
@@ -514,11 +409,9 @@ const WorkflowUsePage: React.FC = () => {
                     <Button 
                       type="primary"
                       onClick={handleRun}
-                      loading={isInitializing}
-                      disabled={isInitializing}
                       icon={<PlayCircleOutlined />}
                     >
-                      {isInitializing ? '初始化中...' : '运行'}
+                      运行
                     </Button>
                   )}
                 </div>

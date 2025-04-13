@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Typography, Divider, Descriptions, Tag, Spin, Button, Space, Alert, Form } from 'antd';
+import { RobotOutlined } from '@ant-design/icons';
 import { NodeConfigProps } from './NodeConfigInterface';
 import workTaskService from '../../../services/workTaskService';
 
@@ -84,11 +85,11 @@ const WorkTaskNodeConfig: React.FC<WorkTaskNodeConfigProps> = ({
       }}
     >
       <Alert
-        message="工作任务说明"
+        icon={<RobotOutlined />}
         description="工作任务卡仅展示信息，无需配置。工作任务将按照预定义逻辑执行。"
         type="info"
-        showIcon
-        style={{ marginBottom: 16 }}
+        showIcon={true}
+        style={{ marginBottom: 16, background: '#f5f5f5', border: '1px solid #e8e8e8' }}
       />
 
       <Card bordered={false}>
@@ -128,8 +129,6 @@ const WorkTaskNodeConfig: React.FC<WorkTaskNodeConfigProps> = ({
         showIcon
         style={{ marginBottom: 16 }}
       />
-
-      {/* 移除独立的保存按钮，使用Modal底部按钮统一保存 */}
     </Form>
   );
 };

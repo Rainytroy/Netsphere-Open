@@ -1,6 +1,7 @@
-import React, { useCallback, useRef, useState, useEffect } from 'react';
+import React, { useCallback, useRef, useState, useEffect, useContext } from 'react';
 import { message } from 'antd'; // 导入消息组件
 import ReactFlow, {
+  useViewport,
   Background,
   Controls,
   MiniMap,
@@ -17,6 +18,7 @@ import './edges/CustomEdges.css'; // 导入自定义边样式
 import { nodeTypes } from './nodes/CustomNodes';
 import { edgeTypes } from './edges/CustomEdges'; // 导入自定义边类型
 import NodeConfigPanel from './nodeConfig/NodeConfigPanel'; // 导入节点配置面板
+// 移除编辑器上下文引用
 
 // 初始节点和边
 const initialNodes: Node[] = [];
@@ -48,6 +50,9 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
   // 如果提供了外部节点和边，使用它们；否则使用内部状态
   const [nodes, setNodes, onNodesChangeInternal] = useNodesState(externalNodes || initialNodes);
   const [edges, setEdges, onEdgesChangeInternal] = useEdgesState(externalEdges || initialEdges);
+  
+  // 获取视口状态
+  const { x, y, zoom } = useViewport();
   
   // 节点配置面板状态
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
@@ -161,6 +166,12 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
   
+  // 当ReactFlow实例初始化时更新本地状态
+  const handleInit = useCallback((instance: any) => {
+    console.log('[FlowCanvas] ReactFlow实例初始化');
+    setReactFlowInstance(instance);
+  }, []);
+  
   // 处理拖动经过
   const onDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -173,6 +184,42 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
     setSelectedNode(node);
     setConfigPanelVisible(true);
   }, []);
+  
+  // 处理边删除
+  const handleEdgeDelete = useCallback((edgeId: string) => {
+    console.log('[FlowCanvas] 删除边:', edgeId);
+    
+    try {
+      // 获取当前边的快照
+      const currentEdges = [...edges];
+      
+      // 过滤掉要删除的边
+      const updatedEdges = currentEdges.filter(edge => edge.id !== edgeId);
+      
+      // 判断是否有实际变化
+      const edgesChanged = updatedEdges.length !== currentEdges.length;
+      
+      // 如果有边变化，才更新边状态
+      if (edgesChanged) {
+        // 更新边状态
+        setEdges(updatedEdges);
+        
+        // 通知父组件边已更新
+        if (onEdgesChange) {
+          console.log('[FlowCanvas] 边删除后通知更新:', updatedEdges.length);
+          onEdgesChange(updatedEdges);
+        }
+        
+        // 显示成功消息
+        message.success(`连接已从工作流中移除`);
+      } else {
+        console.warn('[FlowCanvas] 没有边被删除');
+      }
+    } catch (error) {
+      console.error('[FlowCanvas] 删除边出错:', error);
+      message.error('删除连接失败，请重试');
+    }
+  }, [edges, setEdges, onEdgesChange]);
   
   // 处理节点配置保存 - 仅负责更新节点配置
   const handleNodeConfigSave = useCallback((nodeId: string, config: any) => {
@@ -210,10 +257,11 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
     });
   }, [nodes, onNodeConfig, onNodesChange]);
   
-  // 处理节点删除
-  const handleNodeDelete = useCallback((nodeId: string) => {
-    console.log('[FlowCanvas] 删除节点:', nodeId);
-    
+// 处理节点删除
+const handleNodeDelete = useCallback((nodeId: string) => {
+  console.log('[FlowCanvas] 删除节点:', nodeId);
+  
+  try {
     // 获取当前状态的快照以确保一致性
     const currentNodes = [...nodes];
     const currentEdges = [...edges];
@@ -233,23 +281,27 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
     const nodesChanged = updatedNodes.length !== currentNodes.length;
     const edgesChanged = updatedEdges.length !== currentEdges.length;
     
+    // 使用一个标志来跟踪更新
+    let updated = false;
+    
     // 如果有节点变化，才更新节点状态
     if (nodesChanged) {
+      // 直接在ReactFlow内部更新节点，确保UI同步
       setNodes(updatedNodes);
+      updated = true;
       
       // 通知父组件节点已更新
       if (onNodesChange) {
         console.log('[FlowCanvas] 节点删除后通知更新:', updatedNodes.length);
         onNodesChange(updatedNodes);
-        
-        // 显示删除成功消息
-        message.success(`节点已成功删除`);
       }
     }
     
     // 如果有边变化，才更新边状态
     if (edgesChanged) {
+      // 直接在ReactFlow内部更新边，确保UI同步
       setEdges(updatedEdges);
+      updated = true;
       
       // 通知父组件边已更新
       if (onEdgesChange) {
@@ -257,7 +309,74 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
         onEdgesChange(updatedEdges);
       }
     }
-  }, [onNodesChange, onEdgesChange]);
+    
+    // 如果有任何更新，显示成功消息
+    if (updated) {
+      // 使用更明确的消息
+      message.success(`节点已从工作流中移除`);
+    } else {
+      console.warn('[FlowCanvas] 没有节点被删除');
+    }
+
+    // 强制在下一个渲染周期重新布局
+    if (reactFlowInstance && updated) {
+      setTimeout(() => {
+        reactFlowInstance.fitView({ padding: 0.2 });
+      }, 50);
+    }
+  } catch (error) {
+    console.error('[FlowCanvas] 删除节点出错:', error);
+    message.error('删除节点失败，请重试');
+  }
+}, [nodes, edges, setNodes, setEdges, onNodesChange, onEdgesChange, reactFlowInstance]);
+  
+  // 添加键盘事件和边删除按钮事件监听
+  useEffect(() => {
+    // 键盘Delete键处理函数
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // 仅在按下Delete键时处理
+      if (event.key === 'Delete') {
+        // 检查当前悬停的元素
+        const hoveredNode = document.querySelector('.react-flow__node:hover');
+        const hoveredEdge = document.querySelector('.react-flow__edge:hover');
+        
+        if (hoveredNode) {
+          // 获取节点ID
+          const nodeId = hoveredNode.getAttribute('data-id');
+          if (nodeId) {
+            console.log('[FlowCanvas] 按Delete键删除节点:', nodeId);
+            handleNodeDelete(nodeId);
+          }
+        } else if (hoveredEdge) {
+          // 获取边ID
+          const edgeId = hoveredEdge.getAttribute('data-id');
+          if (edgeId) {
+            console.log('[FlowCanvas] 按Delete键删除边:', edgeId);
+            handleEdgeDelete(edgeId);
+          }
+        }
+      }
+    };
+    
+    // 边删除按钮点击处理函数
+    const handleEdgeDeleteEvent = (event: CustomEvent) => {
+      const edgeId = event.detail?.id;
+      if (edgeId) {
+        console.log('[FlowCanvas] 点击删除边按钮:', edgeId);
+        handleEdgeDelete(edgeId);
+      }
+    };
+
+    // 添加事件监听器
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('edge:delete', handleEdgeDeleteEvent as EventListener);
+    
+    // 组件卸载时移除事件监听器
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('edge:delete', handleEdgeDeleteEvent as EventListener);
+    };
+  }, [handleNodeDelete, handleEdgeDelete]);
   
   // 处理拖放
   const onDrop = useCallback((event: React.DragEvent<HTMLDivElement>) => {
@@ -296,18 +415,47 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
       // 生成唯一ID
       const nodeId = `${cardData.id}-${Date.now()}`;
       
-      // 创建新节点
-      const newNode = {
-        id: nodeId,
-        type: cardData.id,
-        position,
-        data: { 
-          label: cardData.title, 
-          ...cardData,
-          // 添加默认配置，防止配置面板报错
-          config: cardData.config || {}
-        }
-      };
+      // 区分普通流程卡和工作任务卡
+      let nodeType = cardData.id;  // 默认使用卡片ID作为节点类型
+      let newNode;
+      
+      // 特殊处理工作任务卡类型，与handleCardSelect保持一致
+      if (cardData.type === 'task') {
+        nodeType = 'worktask';  // 使用固定的worktask类型，保证与NodeConfigPanel匹配
+        
+        // 对于工作任务卡，使用更清晰的数据结构
+        newNode = {
+          id: nodeId,
+          type: nodeType,
+          position,
+          data: {
+            label: cardData.title,
+            id: cardData.id,
+            type: cardData.type,
+            title: cardData.title,
+            description: cardData.description || '',
+            taskId: cardData.id,  // 明确设置taskId以便配置面板使用
+            // 如果有可选属性，则复制
+            ...(cardData.icon ? { icon: cardData.icon } : {}),
+            ...(cardData.metadata ? { metadata: cardData.metadata } : {}),
+            // 添加默认配置，防止配置面板报错
+            config: cardData.config || {}
+          }
+        };
+      } else {
+        // 普通流程卡
+        newNode = {
+          id: nodeId,
+          type: nodeType,
+          position,
+          data: { 
+            label: cardData.title, 
+            ...cardData,
+            // 添加默认配置，防止配置面板报错
+            config: cardData.config || {}
+          }
+        };
+      }
       
       console.log('[FlowCanvas] 创建新节点:', newNode);
       
@@ -316,16 +464,16 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
         const updatedNodes = [...prevNodes, newNode];
         console.log('[FlowCanvas] 更新后的节点列表:', updatedNodes);
         
-      // 使用Promise.resolve来确保状态已更新
-      Promise.resolve().then(() => {
-        if (onNodesChange) {
-          console.log('[FlowCanvas] 通知父组件节点变化');
-          onNodesChange(updatedNodes);
-          
-          // 显示成功消息
-          message.success(`节点 ${cardData.title} 已添加`);
-        }
-      });
+        // 使用Promise.resolve来确保状态已更新
+        Promise.resolve().then(() => {
+          if (onNodesChange) {
+            console.log('[FlowCanvas] 通知父组件节点变化');
+            onNodesChange(updatedNodes);
+            
+            // 显示成功消息
+            message.success(`节点 ${cardData.title} 已添加`);
+          }
+        });
         
         return updatedNodes;
       });
@@ -346,7 +494,7 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
         onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}
         onConnect={onConnect}
-        onInit={setReactFlowInstance}
+        onInit={handleInit}
         onDrop={onDrop}
         onDragOver={onDragOver}
         onNodeClick={handleNodeClick}

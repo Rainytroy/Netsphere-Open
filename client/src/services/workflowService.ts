@@ -2,6 +2,7 @@ import axios from 'axios';
 import { API_BASE_URL } from '../config';
 import { VariableEventService } from './VariableEventService';
 import { workflowVariableService } from './workflowVariableService';
+import { WorkflowStructure } from '../pages/workflow/types';
 
 // 工作流接口定义
 export interface Workflow {
@@ -59,7 +60,7 @@ export interface WorkflowListResponse {
 }
 
 // 工作流结构（包括节点和连接）
-export interface WorkflowStructure {
+export interface WorkflowFullStructure {
   workflow: Workflow;
   nodes: WorkflowNode[];
   connections: WorkflowConnection[];
@@ -67,10 +68,13 @@ export interface WorkflowStructure {
 
 // 创建工作流请求参数
 export interface CreateWorkflowParams {
+  id?: string;
   name: string;
   description?: string;
   metadata?: any;
   isActive?: boolean;
+  nodes?: any[];
+  connections?: any[];
 }
 
 // 创建节点请求参数
@@ -103,7 +107,7 @@ export enum SaveWorkflowPhase {
   IDLE = 'idle',               // 空闲状态
   SAVING = 'saving',           // 正在保存到服务器
   VERIFYING = 'verifying',     // 验证服务器保存结果
-  SYNCING_VARIABLES = 'syncing', // 同步到变量系统
+  SYNCING_VARIABLES = 'syncing_variables', // 同步到变量系统
   BROADCASTING = 'broadcasting', // 广播变更
   COMPLETED = 'completed'      // 完成所有流程
 }
@@ -147,7 +151,7 @@ class WorkflowService {
     }
 
     const response = await axios.get(`${API_BASE_URL}/workflows?${params.toString()}`);
-    return response.data as WorkflowListResponse;
+    return response.data;
   }
 
   /**
@@ -173,7 +177,7 @@ class WorkflowService {
     console.log('[WorkflowService] 创建了空工作流，用户需要手动添加卡片');
     
     const response = await axios.post(`${API_BASE_URL}/workflows`, updatedData);
-    const workflow = response.data as Workflow;
+    const workflow = response.data;
     
     try {
       // 初始化工作流变量
@@ -202,7 +206,7 @@ class WorkflowService {
    */
   async getWorkflow(id: string): Promise<Workflow> {
     const response = await axios.get(`${API_BASE_URL}/workflows/${id}`);
-    return response.data as Workflow;
+    return response.data;
   }
 
   /**
@@ -212,7 +216,53 @@ class WorkflowService {
    */
   async getWorkflowStructure(id: string): Promise<WorkflowStructure> {
     const response = await axios.get(`${API_BASE_URL}/workflows/${id}/structure`);
-    return response.data as WorkflowStructure;
+    const data = response.data as WorkflowStructure;
+    
+    // 调试输出，查看返回的原始数据
+    console.log('[workflowService] 获取到工作流结构原始数据:', data);
+    
+    // 确保从metadata中解析节点和连接
+    if (data && data.metadata) {
+      try {
+        // 检查是否已经包含解析后的节点和连接数据
+        if (!data.nodes || data.nodes.length === 0) {
+          const metadata = data.metadata as any;
+          
+          if (metadata.nodes) {
+            console.log('[workflowService] 从metadata.nodes解析节点数据');
+            // 如果nodes是字符串，尝试解析
+            if (typeof metadata.nodes === 'string') {
+              data.nodes = JSON.parse(metadata.nodes);
+            } else {
+              data.nodes = metadata.nodes;
+            }
+          }
+        }
+        
+        if (!data.connections || data.connections.length === 0) {
+          const metadata = data.metadata as any;
+          
+          if (metadata.edges) {
+            console.log('[workflowService] 从metadata.edges解析连接数据');
+            // 如果edges是字符串，尝试解析
+            if (typeof metadata.edges === 'string') {
+              data.connections = JSON.parse(metadata.edges);
+            } else {
+              data.connections = metadata.edges;
+            }
+          }
+        }
+        
+        console.log('[workflowService] 解析后的工作流结构:', {
+          nodesCount: data.nodes?.length || 0,
+          connectionsCount: data.connections?.length || 0
+        });
+      } catch (error) {
+        console.error('[workflowService] 解析工作流结构数据失败:', error);
+      }
+    }
+    
+    return data;
   }
 
   /**
@@ -259,7 +309,7 @@ class WorkflowService {
       console.log(`[WorkflowService] [${reqId}] PUT请求完成，耗时: ${updateDuration}ms, 状态码: ${response.status}`);
       
       // 解析响应
-      const workflow = response.data as Workflow;
+      const workflow = response.data;
       
       // 通知进度：保存完成，开始验证
       onProgress(SaveWorkflowPhase.VERIFYING, "验证服务器保存结果...");
@@ -350,7 +400,7 @@ class WorkflowService {
    */
   async copyWorkflow(id: string): Promise<Workflow> {
     const response = await axios.post(`${API_BASE_URL}/workflows/${id}/copy`);
-    const newWorkflow = response.data as Workflow;
+    const newWorkflow = response.data;
     
     try {
       // 为复制的工作流创建变量
@@ -376,7 +426,7 @@ class WorkflowService {
    */
   async executeWorkflow(id: string, input: any): Promise<{ executionId: string }> {
     const response = await axios.post(`${API_BASE_URL}/workflows/${id}/execute`, { input });
-    return response.data as { executionId: string };
+    return response.data;
   }
 
   /**
@@ -386,7 +436,7 @@ class WorkflowService {
    */
   async getNodes(workflowId: string): Promise<WorkflowNode[]> {
     const response = await axios.get(`${API_BASE_URL}/workflows/${workflowId}/nodes`);
-    return response.data as WorkflowNode[];
+    return response.data;
   }
 
   /**
@@ -399,7 +449,7 @@ class WorkflowService {
     const response = await axios.post(`${API_BASE_URL}/workflows/${workflowId}/nodes`, nodeData);
     // 通知变量系统更新
     VariableEventService.notifyVariableChange();
-    return response.data as WorkflowNode;
+    return response.data;
   }
 
   /**
@@ -413,7 +463,7 @@ class WorkflowService {
     const response = await axios.put(`${API_BASE_URL}/workflows/${workflowId}/nodes/${nodeId}`, data);
     // 通知变量系统更新
     VariableEventService.notifyVariableChange();
-    return response.data as WorkflowNode;
+    return response.data;
   }
 
   /**
@@ -434,7 +484,7 @@ class WorkflowService {
    */
   async getConnections(workflowId: string): Promise<WorkflowConnection[]> {
     const response = await axios.get(`${API_BASE_URL}/workflows/${workflowId}/connections`);
-    return response.data as WorkflowConnection[];
+    return response.data;
   }
 
   /**
@@ -447,7 +497,7 @@ class WorkflowService {
     const response = await axios.post(`${API_BASE_URL}/workflows/${workflowId}/connections`, connectionData);
     // 通知变量系统更新
     VariableEventService.notifyVariableChange();
-    return response.data as WorkflowConnection;
+    return response.data;
   }
 
   /**
@@ -461,7 +511,7 @@ class WorkflowService {
     const response = await axios.put(`${API_BASE_URL}/workflows/${workflowId}/connections/${connectionId}`, data);
     // 通知变量系统更新
     VariableEventService.notifyVariableChange();
-    return response.data as WorkflowConnection;
+    return response.data;
   }
 
   /**
@@ -476,4 +526,5 @@ class WorkflowService {
   }
 }
 
+// 导出单例实例
 export const workflowService = new WorkflowService();

@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Form, Input, Radio, Alert, Typography, Spin } from 'antd';
+import { EyeOutlined } from '@ant-design/icons';
 import { NodeConfigProps } from './NodeConfigInterface';
-import VariableEditor2, { VariableEditorRef } from '../../../components/variable';
+import VexWorkflowEditor, { VexWorkflowEditorRef } from '../VexWorkflowEditor';
 import { variableService } from '../../../services/variableService';
+import { useVariableParser } from '../../../pages/demo/variable-editor-x/hooks/useVariableParser';
 
 const { Text } = Typography;
 
@@ -13,15 +15,18 @@ const { Text } = Typography;
 const DisplayNodeConfig: React.FC<NodeConfigProps> = ({
   nodeId,
   initialConfig,
-  onSave
+  onSave,
+  updateEditorState  // 接收编辑器状态更新回调
 }) => {
+  // 在组件顶层使用变量解析钩子
+  const { parseText } = useVariableParser();
   const [form] = Form.useForm();
   const [variables, setVariables] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [variablePathContent, setVariablePathContent] = useState<string>(initialConfig?.variablePath || '');
   
-  // 创建一个ref用于访问VariableEditor组件实例
-  const editorRef = useRef<VariableEditorRef>(null);
+  // 创建一个ref用于访问VexWorkflowEditor组件实例
+  const editorRef = useRef<VexWorkflowEditorRef>(null);
   
   // 使用状态跟踪是否已经设置过初始内容，避免重复设置
   const [contentInitialized, setContentInitialized] = useState(false);
@@ -133,39 +138,110 @@ const DisplayNodeConfig: React.FC<NodeConfigProps> = ({
       // 同时更新表单值，但避免不必要的重渲染
       form.setFieldsValue({ variablePath: value });
       
+      // 尝试实时更新编辑器状态中的描述字段，如果回调存在
+      if (updateEditorState) {
+        updateEditorState('description', value);
+      }
+      
       // 调试输出 - 使用更具体的标识符
       console.log(`[DisplayNodeConfig:${nodeId}] 变量路径已更新`);
     }
   };
-
-  // 移除焦点管理代码，避免修改编辑器组件
   
-  // 处理表单提交 - 优化确保获取正确内容
-  const handleFormSubmit = (values: any) => {
-    // 获取编辑器中的实际变量路径内容
-    let finalVariablePath = variablePathContent;
+  // 优化表单提交处理，确保正确获取和提交内容 - 遵循起点卡的最佳实践
+  const handleFormSubmit = async (values: any) => {
+    console.log(`[DisplayNodeConfig] 开始处理提交，nodeId: ${nodeId}`);
     
-    // 内容验证
+    // 获取最新的编辑器内容
+    const finalVariablePath = variablePathContent;
+    
+    // 确认内容是否有效
     if (finalVariablePath === undefined || finalVariablePath === null) {
       console.error(`[DisplayNodeConfig:${nodeId}] 变量路径内容无效:`, finalVariablePath);
       // 回退到表单值
-      finalVariablePath = values.variablePath || '';
+      values.variablePath = values.variablePath || '';
     }
     
-    // 输出详细调试信息
-    console.log(`[DisplayNodeConfig:${nodeId}] 表单提交变量路径:`, values.variablePath);
-    console.log(`[DisplayNodeConfig:${nodeId}] 编辑器当前变量路径:`, variablePathContent);
-    console.log(`[DisplayNodeConfig:${nodeId}] 最终使用变量路径:`, finalVariablePath);
+    // 1. 富文本 - 获取编辑器的富文本内容
+    let richContent = null;
+    let rawText = finalVariablePath;
     
-    // 构建最终配置 - 始终优先使用编辑器内容
+    try {
+      if (editorRef.current) {
+        // 获取编辑器的完整富文本内容对象
+        richContent = editorRef.current.getRichContent();
+        
+        // 2. 提取rawText - 记录原始文本，包含变量标识符
+        rawText = richContent.rawText || finalVariablePath;
+        
+        console.log(`[DisplayNodeConfig:${nodeId}] 获取到富文本内容:`, {
+          rawTextLength: rawText?.length || 0,
+          rawTextSample: rawText ? rawText.substring(0, 50) + (rawText.length > 50 ? '...' : '') : '(空)',
+          richContentKeys: richContent ? Object.keys(richContent).join(', ') : '无'
+        });
+      } else {
+        console.warn(`[DisplayNodeConfig:${nodeId}] 编辑器实例不可用，无法获取富文本内容`);
+      }
+    } catch (error) {
+      console.error('[DisplayNodeConfig] 获取富文本内容失败:', error);
+    }
+    
+    // 3. 解析变量 - 使用parseText处理rawText中的变量标识符
+    let parsedContent = rawText;
+    try {
+      if (rawText) {
+        // 使用变量解析器解析变量标识符 - 与起点卡逻辑一致
+        console.log(`[DisplayNodeConfig:${nodeId}] 开始解析变量内容`);
+        try {
+          // 解析原始文本
+          const resolvedContent = await parseText(rawText);
+          if (resolvedContent) {
+            parsedContent = resolvedContent;
+            console.log(`[DisplayNodeConfig:${nodeId}] 变量解析成功:`, {
+              parsedLength: parsedContent.length,
+              parsedSample: parsedContent.substring(0, 50) + (parsedContent.length > 50 ? '...' : '')
+            });
+          } else {
+            // 如果解析失败，回退到使用原始文本
+            console.warn(`[DisplayNodeConfig:${nodeId}] 变量解析返回空值，使用原始文本`);
+            parsedContent = rawText;
+          }
+        } catch (resolveError) {
+          console.error(`[DisplayNodeConfig:${nodeId}] 解析变量标识符错误:`, resolveError);
+          parsedContent = rawText;
+        }
+      }
+    } catch (error) {
+      console.error(`[DisplayNodeConfig:${nodeId}] 处理编辑器内容失败:`, error);
+    }
+    
+    // 4. 存储解析后内容 - 构建最终配置对象
     const config = {
       ...initialConfig,
-      variablePath: finalVariablePath,
-      displayMode: values.displayMode
+      variablePath: finalVariablePath,       // 保留原始编辑器内容
+      displayMode: values.displayMode,       // 显示模式
+      rawText: rawText,                      // 保存原始文本(含变量标识符)
+      parsedContent: parsedContent,          // 存储解析后的内容
+      // 同时保存富文本对象，以备将来需要
+      richContent: richContent
     };
     
-    // 调用保存回调
+    // 详细记录最终提交的配置
+    console.log(`[DisplayNodeConfig:${nodeId}] 最终配置:`, {
+      displayMode: values.displayMode,
+      variablePathLength: finalVariablePath?.length || 0,
+      rawTextLength: rawText?.length || 0,
+      parsedContentLength: parsedContent?.length || 0,
+      hasRichContent: !!richContent
+    });
+    
+    // 调用保存回调，传递节点ID和配置
     onSave(nodeId, config);
+    
+    // 如果提供了状态更新回调，使用解析后的内容更新编辑器状态
+    if (updateEditorState) {
+      updateEditorState('description', parsedContent);
+    }
   };
 
   return (
@@ -176,11 +252,11 @@ const DisplayNodeConfig: React.FC<NodeConfigProps> = ({
       onFinish={handleFormSubmit}
     >
       <Alert
-        message="展示卡说明"
+        icon={<EyeOutlined />}
         description="展示卡用于在系统输出区显示变量内容。"
         type="info"
-        showIcon
-        style={{ marginBottom: 16 }}
+        showIcon={true}
+        style={{ marginBottom: 16, background: '#f5f5f5', border: '1px solid #e8e8e8' }}
       />
       
       <Form.Item
@@ -192,13 +268,14 @@ const DisplayNodeConfig: React.FC<NodeConfigProps> = ({
         {loading ? (
           <Spin tip="加载变量列表..." />
         ) : (
-          <VariableEditor2
+          <VexWorkflowEditor
             ref={editorRef}
             variables={variables}
             placeholder="选择或输入变量路径，例如: @taskName.output"
             defaultValue={initialConfig?.variablePath || ''}
             onChange={handleVariablePathChange}
             minHeight="50px"
+            workflowId={nodeId}
           />
         )}
       </Form.Item>
@@ -226,8 +303,6 @@ const DisplayNodeConfig: React.FC<NodeConfigProps> = ({
         showIcon
         style={{ marginBottom: 16 }}
       />
-
-      {/* 移除独立的保存按钮，使用Modal底部按钮统一保存 */}
     </Form>
   );
 };

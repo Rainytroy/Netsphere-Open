@@ -95,8 +95,10 @@ const WorkflowEditorContent: React.FC<WorkflowEditorProps> = ({
     }
   };
 
-  // 处理使用
+  // 处理使用 - 纯粹的跳转操作，不再包含保存逻辑
   const handleUse = () => {
+    console.log('[WorkflowEditor] 跳转到工作流使用页面');
+    
     if (onUse) {
       onUse();
     } else {

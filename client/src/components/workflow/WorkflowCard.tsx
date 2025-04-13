@@ -27,9 +27,15 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workflow, onDelete, onCopy,
   const [executionDuration, setExecutionDuration] = useState<number | null>(null);
   
   // 格式化日期
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleString('zh-CN', {
+  const formatDate = (date?: Date | string) => {
+    if (!date) return '未知';
+    
+    const dateObj = date instanceof Date ? date : new Date(date);
+    
+    // 检查日期是否有效
+    if (isNaN(dateObj.getTime())) return '未知';
+    
+    return dateObj.toLocaleString('zh-CN', {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',

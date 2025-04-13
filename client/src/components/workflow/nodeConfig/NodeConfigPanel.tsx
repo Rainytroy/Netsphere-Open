@@ -171,8 +171,22 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
   // 处理节点删除
   const handleDelete = () => {
     if (onDelete && node) {
-      onDelete(node.id);
-      onClose(); // 关闭弹窗
+      try {
+        // 添加确认删除的日志
+        console.log('[NodeConfigPanel] 确认删除节点:', node.id, node.type);
+        
+        // 调用删除回调
+        onDelete(node.id);
+        
+        // 成功调用后关闭弹窗
+        onClose();
+        
+      } catch (error) {
+        console.error('[NodeConfigPanel] 删除节点出错:', error);
+        message.error('删除节点失败，请重试');
+      }
+    } else {
+      console.warn('[NodeConfigPanel] 无法删除节点: onDelete回调未提供或未选择节点');
     }
   };
 

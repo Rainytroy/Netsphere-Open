@@ -52,16 +52,23 @@ export const loadWorkflowData = (workflow?: Workflow): { nodes: Node[], edges: E
           console.log('[WorkflowDataHandler] 解析的节点数据:', parsedNodes);
           
           // 标准化节点数据
-          loadedNodes = parsedNodes.map(node => ({
-            ...node,
-            // 确保每个节点都有必需的属性
-            id: node.id || `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            type: node.type || 'default',
-            // 确保position存在
-            position: node.position || { x: 0, y: 0 },
-            // 确保data存在
-            data: node.data || { label: '未命名节点' }
-          }));
+          loadedNodes = parsedNodes.map(node => {
+            // 打印日志，检查节点是否包含config
+            console.log(`[WorkflowDataHandler] 加载节点 ${node.id} 配置:`, node.config);
+            
+            return {
+              ...node,
+              // 确保每个节点都有必需的属性
+              id: node.id || `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              type: node.type || 'default',
+              // 确保position存在
+              position: node.position || { x: 0, y: 0 },
+              // 确保data存在
+              data: node.data || { label: '未命名节点' },
+              // 确保保留config属性
+              config: node.config || undefined
+            };
+          });
           
           console.log('[WorkflowDataHandler] 标准化后的节点数据:', loadedNodes);
         } catch (nodeErr) {
@@ -136,8 +143,15 @@ export const calculateNodeCounts = (nodes: Node[]): Record<string, number> => {
   
   // 根据节点类型统计数量
   nodes.forEach(node => {
-    const nodeTypeId = node.type || (node.data && node.data.id) || 'default';
-    counts[nodeTypeId] = (counts[nodeTypeId] || 0) + 1;
+    // 对于工作任务卡，使用data.id(原始卡片ID)进行计数
+    if (node.type === 'worktask' && node.data && node.data.id) {
+      const cardId = node.data.id;
+      counts[cardId] = (counts[cardId] || 0) + 1;
+    } else {
+      // 其他卡片继续使用type字段
+      const nodeTypeId = node.type || (node.data && node.data.id) || 'default';
+      counts[nodeTypeId] = (counts[nodeTypeId] || 0) + 1;
+    }
   });
   
   console.log('[WorkflowDataHandler] 计算得到使用计数:', counts);
@@ -185,21 +199,45 @@ export const prepareWorkflowData = (
   console.log(`[WorkflowDataHandler] 筛选后有效边: ${validEdges.length}/${edges.length}`);
   
   // 清理节点数据，确保序列化不会出问题
-  const finalNodes = cleanedNodes.map(node => ({
-    ...node,
-    // 移除可能导致循环引用的属性
-    selected: undefined,
-    dragging: undefined,
-    hidden: undefined,
-    // 确保数据部分不包含循环引用
-    data: {
-      ...node.data,
-      // 移除可能包含函数或复杂对象的属性
-      handlers: undefined,
-      references: undefined,
-      flowInstance: undefined
-    }
-  }));
+  // 使用类型断言处理节点
+  interface ExtendedNode extends Node {
+    config?: any;
+  }
+  
+  const finalNodes = cleanedNodes.map(node => {
+    // 使用类型断言转换Node类型以支持config属性
+    const extendedNode = node as ExtendedNode;
+    
+    // 记录详细日志
+    console.log(`[WorkflowDataHandler] 处理节点配置: ${extendedNode.id}, 类型: ${extendedNode.type}, 配置:`, extendedNode.config);
+    
+    return {
+      ...extendedNode,
+      // 移除可能导致循环引用的属性
+      selected: undefined,
+      dragging: undefined,
+      hidden: undefined,
+      // 确保数据部分不包含循环引用
+      data: {
+        ...extendedNode.data,
+        // 移除可能包含函数或复杂对象的属性
+        handlers: undefined,
+        references: undefined,
+        flowInstance: undefined
+      },
+      // 确保config被保留 - 这是修复展示卡配置保存的关键
+      config: extendedNode.config ? {
+        ...extendedNode.config,
+        // 处理config中可能导致循环引用的属性
+        richContent: extendedNode.config.richContent ? {
+          ...extendedNode.config.richContent,
+          // 移除可能导致问题的富文本对象属性
+          docInstance: undefined,
+          editorView: undefined
+        } : undefined
+      } : undefined
+    };
+  });
   
   // 清理边数据
   const finalEdges = validEdges.map(edge => ({

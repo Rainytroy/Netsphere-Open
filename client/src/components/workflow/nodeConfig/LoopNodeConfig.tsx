@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Input, Button, Alert, Typography, Select, InputNumber, Divider, Spin } from 'antd';
+import { Form, Input, Button, Alert, Typography, Select, InputNumber, Divider, Spin, Tag } from 'antd';
+import { RetweetOutlined, SearchOutlined } from '@ant-design/icons';
 import { NodeConfigProps } from './NodeConfigInterface';
-import { variableService } from '../../../services/variableService';
-import VariableSelector from '../../../components/variable/VariableSelector';
+import { variableService, VariableType } from '../../../services/variableService';
+import VariableSelectorModal from '../../../pages/demo/variable-editor-x/components/VariableSelectorModal';
+import { VariableData } from '../../../pages/demo/variable-editor-x/types';
+import IdentifierFormatterService from '../../../services/IdentifierFormatterService';
+import VariableThemeService from '../../../services/VariableThemeService';
 
 const { Text, Paragraph } = Typography;
 const { Option } = Select;
@@ -28,12 +32,72 @@ const LoopNodeConfig: React.FC<NodeConfigProps> = ({
   
   // VariableSelector不需要ref
   
+  // VEX变量选择器状态
+  const [modalVisible, setModalVisible] = useState(false);
+  const [variableTypeMap, setVariableTypeMap] = useState<Record<string, string>>({});
+  
+  // 从VexWorkflowEditor借用的变量转换函数
+  const convertToVexVariable = (variable: any): VariableData => {
+    // 基础变量信息
+    const baseVariable = {
+      id: variable.id || variable.sourceId || '',
+      field: variable.field || variable.name || '',  // 正确保留原始field字段
+      sourceName: variable.sourceName || variable.source?.name || 'Unknown',
+      sourceType: variable.type || variable.source?.type || 'custom',
+      value: variable.value || '',
+      displayIdentifier: variable.displayIdentifier,
+    };
+    
+    // 如果没有提供displayIdentifier，需要构建一个
+    if (!baseVariable.displayIdentifier) {
+      // 从ID中提取entityId (与前面的逻辑保持一致)
+      let entityId = baseVariable.id;
+      const idParts = baseVariable.id.split('_');
+      
+      if (idParts.length >= 3) {
+        // type_entityId_fieldname 格式：中间部分是entityId
+        entityId = idParts.slice(1, -1).join('_');
+      } else if (idParts.length === 2) {
+        // entityId_fieldname 格式：第一部分是entityId
+        entityId = idParts[0];
+      }
+      
+      // 获取entityId的前4位作为shortId
+      const shortId = entityId.substring(0, 4);
+      
+      // 构建标准格式的显示标识符
+      baseVariable.displayIdentifier = `@${baseVariable.sourceName}.${baseVariable.field}#${shortId}`;
+    }
+    
+    // 添加getter方法用于生成标准格式的标识符
+    return {
+      ...baseVariable,
+      // 系统标识符：@gv_type_entityId_field-=
+      identifier: `@gv_${baseVariable.sourceType}_${baseVariable.id}_${baseVariable.field}-=`,
+      // 兼容旧代码的type字段
+      type: baseVariable.sourceType,
+    };
+  };
+  
+  // 转换变量列表
+  const convertToVexVariables = (): VariableData[] => {
+    return variables.map(convertToVexVariable);
+  };
+  
   // 加载变量列表
   useEffect(() => {
     const loadVariables = async () => {
       try {
         setLoading(true);
+        console.log('[LoopNodeConfig] 开始加载变量列表...');
+        
+        // 直接请求API并记录响应数据结构
         const response: any = await variableService.getVariables();
+        console.log('[LoopNodeConfig] 获取到原始响应:', 
+          typeof response, 
+          Array.isArray(response) ? '是数组' : '非数组',
+          response && response.data ? '有data属性' : '无data属性'
+        );
         
         // 处理响应数据，确保我们有一个有效的数组
         let responseData: any[] = [];
@@ -47,20 +111,42 @@ const LoopNodeConfig: React.FC<NodeConfigProps> = ({
           }
         }
         
-        // 转换变量为VariableEditor组件可用的格式
-        const variableViews = responseData.map((v: any) => ({
-          id: v.id,
-          name: v.name,
-          identifier: v.identifier,
-          type: v.type,
-          sourceId: v.source?.id || '',
-          sourceName: v.source?.name || '',
-          value: v.value
-        }));
+        console.log(`[LoopNodeConfig] 处理后得到 ${responseData.length} 条变量记录`);
         
-        setVariables(variableViews);
+        // 确保变量数据的所有字段都是正确的 (特别是field字段)
+        const variableViews = responseData.map((v: any) => {
+          // 检查并保持原始字段值
+          const originalField = v.field || v.fieldname || 'value';
+          
+          // 更详细的日志，帮助我们理解每个变量的数据结构
+          console.log(`[LoopNodeConfig] 变量: ${v.name || 'unnamed'}, ID: ${v.id?.substring(0, 8)}..., 类型: ${v.type}, 字段: ${originalField}`);
+          
+          return {
+            id: v.id,
+            name: v.name,
+            identifier: v.identifier,
+            type: v.type,
+            field: originalField,  // 确保使用原始字段名
+            sourceId: v.source?.id || '',
+            sourceName: v.source?.name || '',
+            value: v.value,
+            // 添加更多源字段，以便转换函数能够访问
+            source: v.source,
+            fieldname: v.fieldname
+          };
+        });
+        
+        // 确保变量没有重复，使用ID作为唯一标识
+        const uniqueVariables = variableViews.filter((v, index, self) => 
+          index === self.findIndex(t => t.id === v.id)
+        );
+        
+        console.log(`[LoopNodeConfig] 去重后剩余 ${uniqueVariables.length} 条变量记录`);
+        
+        // 更新状态
+        setVariables(uniqueVariables);
       } catch (error) {
-        console.error('加载变量列表失败:', error);
+        console.error('[LoopNodeConfig] 加载变量列表失败:', error);
       } finally {
         setLoading(false);
       }
@@ -153,6 +239,62 @@ const LoopNodeConfig: React.FC<NodeConfigProps> = ({
     return null;
   };
 
+  // 根据变量类型确定标签颜色
+  const getVariableTagStyle = (displayId: string) => {
+    // 从缓存的映射中获取变量类型
+    let variableType = variableTypeMap[displayId];
+    
+    if (!variableType) {
+      // 如果未找到缓存的类型信息，则从显示标识符推断
+      variableType = VariableType.WORKFLOW; // 默认为工作流变量
+      
+      // 解析显示标识符
+      const parseResult = IdentifierFormatterService.parseDisplayIdentifier(displayId);
+      if (parseResult) {
+        const { sourceName, field } = parseResult;
+        
+        // 根据字段名和源名称推断类型
+        if (field === 'knowledge' || field === 'act' || field === 'name') {
+          variableType = VariableType.NPC;
+        } else if (field === 'output') {
+          variableType = VariableType.TASK;
+        } else if (field === 'value') {
+          variableType = VariableType.CUSTOM;
+        } else if (field === 'path' || field === 'content') {
+          variableType = VariableType.FILE;
+        }
+        
+        // 根据源名称进一步推断
+        if (sourceName && sourceName.toLowerCase().includes('task')) {
+          variableType = VariableType.TASK;
+        } else if (sourceName && sourceName.toLowerCase().includes('workflow')) {
+          variableType = VariableType.WORKFLOW;
+        } else if (sourceName && sourceName.toLowerCase().includes('npc')) {
+          variableType = VariableType.NPC;
+        }
+      }
+      
+      // 缓存推断结果
+      setVariableTypeMap(prev => ({
+        ...prev,
+        [displayId]: variableType
+      }));
+    }
+    
+    // 使用VariableThemeService获取标准样式
+    const colors = VariableThemeService.getTypeColor(variableType);
+    
+    return {
+      backgroundColor: colors.bgColor,
+      borderColor: colors.borderColor,
+      color: colors.textColor,
+      fontSize: '12px',
+      fontWeight: 500,
+      padding: '4px 8px',
+      borderRadius: '4px'
+    };
+  };
+  
   // 处理表单提交
   const handleFormSubmit = (values: any) => {
     // 根据条件类型构建条件配置
@@ -191,11 +333,11 @@ const LoopNodeConfig: React.FC<NodeConfigProps> = ({
       onFinish={handleFormSubmit}
     >
       <Alert
-        message="循环卡说明"
+        icon={<RetweetOutlined />}
         description="循环卡用于控制工作流的执行流向，根据条件决定走Yes或No分支。"
         type="info"
-        showIcon
-        style={{ marginBottom: 16 }}
+        showIcon={true}
+        style={{ marginBottom: 16, background: '#f5f5f5', border: '1px solid #e8e8e8' }}
       />
       
       <Form.Item
@@ -231,11 +373,35 @@ const LoopNodeConfig: React.FC<NodeConfigProps> = ({
             ]}
             extra="要比较的变量，选择一个全局变量"
           >
-            <VariableSelector
-              placeholder="选择变量，例如: @workflow.start"
-              value={variablePath}
-              onChange={(value: string) => handleVariablePathChange(value)}
-            />
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              {variablePath ? (
+                <div 
+                  style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    border: '1px solid #d9d9d9',
+                    borderRadius: '2px',
+                    padding: '4px 11px',
+                    width: '100%',
+                    minHeight: '32px'
+                  }}
+                  onClick={() => setModalVisible(true)}
+                >
+                  <Tag style={getVariableTagStyle(variablePath)}>
+                    {variablePath}
+                  </Tag>
+                </div>
+              ) : (
+                <Button 
+                  type="dashed" 
+                  block 
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  onClick={() => setModalVisible(true)}
+                >
+                  <SearchOutlined /> 选择变量
+                </Button>
+              )}
+            </div>
           </Form.Item>
           
           <Form.Item
@@ -258,8 +424,64 @@ const LoopNodeConfig: React.FC<NodeConfigProps> = ({
         showIcon
         style={{ marginBottom: 16 }}
       />
-
-      {/* 移除独立的保存按钮，使用Modal底部按钮统一保存 */}
+      
+      {/* 变量选择模态框 */}
+      <VariableSelectorModal
+        visible={modalVisible}
+        onCancel={() => setModalVisible(false)}
+        onSelect={(variable: VariableData) => {
+          // 获取变量基本信息
+          const variableId = variable.id || '';
+          const sourceName = variable.sourceName || '';
+          const field = variable.field || 'value';
+          
+          // 解析变量ID中的entityId部分
+          let entityId = variableId;
+          
+          // 变量ID格式为：type_entityId_fieldname
+          const idParts = variableId.split('_');
+          if (idParts.length >= 3) {
+            // 第一部分是type，最后一部分是fieldname，中间的都是entityId
+            entityId = idParts.slice(1, -1).join('_');
+          } else if (idParts.length === 2) {
+            // 处理简化格式：entityId_fieldname
+            entityId = idParts[0];
+          }
+          
+          // 获取entityId的前4位作为shortId
+          const shortId = entityId.substring(0, 4);
+          
+          // 手动构建显示标识符，确保使用正确的entityId前4位
+          const displayId = `@${sourceName}.${field}#${shortId}`;
+          
+          // 从变量中获取并保存确定的类型，而不是依赖推断
+          const variableType = variable.sourceType || variable.type || 'custom';
+          
+          // 保存变量类型到缓存中
+          setVariableTypeMap(prev => ({
+            ...prev,
+            [displayId]: variableType
+          }));
+          
+          console.log('[LoopNodeConfig] 选择变量v3.0:', {
+            variableName: sourceName,
+            variableField: field,
+            variableType,
+            variableId: variableId.substring(0, 8) + (variableId.length > 8 ? '...' : ''),
+            entityId: entityId.substring(0, 8) + (entityId.length > 8 ? '...' : ''),
+            shortId,
+            displayId: displayId
+          });
+          
+          // 更新变量路径
+          handleVariablePathChange(displayId);
+          
+          // 关闭模态框
+          setModalVisible(false);
+        }}
+        variables={convertToVexVariables()}
+        loading={loading}
+      />
     </Form>
   );
 };

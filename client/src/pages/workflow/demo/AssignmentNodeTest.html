@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>赋值节点测试</title>
+  <style>
+    body {
+      font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f5f5f5;
+      color: #333;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+    h1 {
+      color: #1890ff;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 10px;
+      margin-top: 0;
+    }
+    button {
+      background-color: #1890ff;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-right: 8px;
+      margin-bottom: 16px;
+    }
+    button:hover {
+      background-color: #40a9ff;
+    }
+    #output {
+      background-color: #f8f8f8;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 16px;
+      white-space: pre-wrap;
+      font-family: monospace;
+      height: 500px;
+      overflow: auto;
+    }
+    .success {
+      color: #52c41a;
+      font-weight: bold;
+    }
+    .error {
+      color: #f5222d;
+      font-weight: bold;
+    }
+    .info {
+      color: #1890ff;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>赋值节点处理器测试</h1>
+    <button id="runTestButton">运行测试</button>
+    <button id="clearButton">清除输出</button>
+    
+    <div id="output">点击"运行测试"按钮开始测试...</div>
+  </div>
+
+  <script>
+    // 控制台输出重定向到页面
+    const outputDiv = document.getElementById('output');
+    const originalConsole = {
+      log: console.log,
+      error: console.error,
+      warn: console.warn,
+      info: console.info
+    };
+
+    // 重写控制台方法
+    console.log = function(...args) {
+      originalConsole.log(...args);
+      appendToOutput('log', ...args);
+    };
+    
+    console.error = function(...args) {
+      originalConsole.error(...args);
+      appendToOutput('error', ...args);
+    };
+    
+    console.warn = function(...args) {
+      originalConsole.warn(...args);
+      appendToOutput('warn', ...args);
+    };
+    
+    console.info = function(...args) {
+      originalConsole.info(...args);
+      appendToOutput('info', ...args);
+    };
+
+    function appendToOutput(type, ...args) {
+      const line = args.map(arg => {
+        if (typeof arg === 'object') {
+          return JSON.stringify(arg, null, 2);
+        }
+        return String(arg);
+      }).join(' ');
+      
+      const className = type === 'error' ? 'error' : 
+                       type === 'warn' ? 'warn' : 
+                       type === 'info' ? 'info' : '';
+      
+      outputDiv.innerHTML += `<div class="${className}">${line}</div>`;
+      outputDiv.scrollTop = outputDiv.scrollHeight;
+    }
+
+    // 模拟环境
+    const mockEnvironment = {
+      ExecutionNode: class {
+        constructor(props) {
+          Object.assign(this, props);
+        }
+      },
+      
+      WorkflowEngine: {
+        async executeAssignmentNode(node, variables, updateVariables) {
+          console.log('[模拟] WorkflowEngine.executeAssignmentNode 被调用');
+          console.log('- 节点:', node);
+          console.log('- 初始变量:', variables);
+          
+          const newVariables = { ...variables };
+          
+          // 简单实现赋值逻辑
+          try {
+            if (node.config && Array.isArray(node.config.assignments)) {
+              for (const assignment of node.config.assignments) {
+                const { sourceVariable, targetVariable, value } = assignment;
+                
+                if (targetVariable) {
+                  if (value !== undefined) {
+                    // 使用固定值
+                    newVariables[targetVariable] = value;
+                    console.log(`- 赋值: ${targetVariable} = ${value} (固定值)`);
+                  } else if (sourceVariable && variables[sourceVariable] !== undefined) {
+                    // 从源变量获取值
+                    newVariables[targetVariable] = variables[sourceVariable];
+                    console.log(`- 赋值: ${targetVariable} = ${variables[sourceVariable]} (来自 ${sourceVariable})`);
+                  } else if (sourceVariable) {
+                    // 源变量不存在
+                    newVariables[targetVariable] = '';
+                    console.log(`- 赋值: ${targetVariable} = '' (源变量 ${sourceVariable} 不存在)`);
+                  }
+                }
+              }
+            }
+            
+            // 更新变量
+            updateVariables(newVariables);
+            
+            return {
+              assignments: node.config.assignments.map(a => ({
+                sourceDisplayId: a.sourceVariable || 'custom',
+                targetDisplayId: a.targetVariable,
+                value: a.value || newVariables[a.targetVariable] || ''
+              })),
+              variableContext: {
+                variables: newVariables,
+                displayIdMap: node.config.displayIdMap || {},
+                variableTypes: {}
+              }
+            };
+          } catch (error) {
+            console.error('赋值执行错误:', error);
+            return { assignments: [], variableContext: { variables: {} } };
+          }
+        }
+      },
+      
+      AssignmentNodeHandler: class {
+        async execute(node, context) {
+          console.log('[模拟] AssignmentNodeHandler.execute 被调用');
+          console.log('- 节点:', node);
+          console.log('- 上下文变量:', context.variables);
+          
+          // 简单模拟赋值逻辑
+          try {
+            if (node.config && Array.isArray(node.config.assignments)) {
+              for (const assignment of node.config.assignments) {
+                const { sourceVariable, targetVariable, value } = assignment;
+                
+                if (targetVariable) {
+                  if (value !== undefined) {
+                    // 使用固定值
+                    context.variables[targetVariable] = value;
+                    console.log(`- 赋值: ${targetVariable} = ${value} (固定值)`);
+                  } else if (sourceVariable && context.variables[sourceVariable] !== undefined) {
+                    // 从源变量获取值
+                    context.variables[targetVariable] = context.variables[sourceVariable];
+                    console.log(`- 赋值: ${targetVariable} = ${context.variables[sourceVariable]} (来自 ${sourceVariable})`);
+                  } else if (sourceVariable) {
+                    // 源变量不存在
+                    context.variables[targetVariable] = '';
+                    console.log(`- 赋值: ${targetVariable} = '' (源变量 ${sourceVariable} 不存在)`);
+                  }
+                }
+              }
+            }
+            
+            // 设置节点输出
+            context.output = {
+              assignments: node.config.assignments.map(a => ({
+                sourceDisplayId: a.sourceVariable || 'custom',
+                targetDisplayId: a.targetVariable,
+                value: a.value || context.variables[a.targetVariable] || ''
+              }))
+            };
+            
+            // 标记完成
+            context.updateNode(node.id, { status: 'completed', output: context.output });
+            
+            // 移动到下一个节点
+            if (node.nextNodeId) {
+              context.moveToNextNode(node.nextNodeId);
+            }
+          } catch (error) {
+            console.error('赋值执行错误:', error);
+            context.onError(node.id, error);
+          }
+        }
+      }
+    };
+
+    // 测试函数
+    async function testAssignmentNode() {
+      console.log('==== 开始测试赋值节点处理器 ====');
+
+      // 测试数据
+      const node = {
+        id: 'assign-test-001',
+        type: 'assign',
+        name: '测试赋值节点',
+        icon: null,
+        status: 'waiting',
+        config: {
+          assignments: [
+            {
+              sourceVariable: null,
+              targetVariable: '@gv_custom_12345_name-=',
+              value: '测试值'
+            },
+            {
+              sourceVariable: '@gv_custom_12345_name-=',
+              targetVariable: '@gv_custom_67890_value-=',
+              value: null
+            }
+          ],
+          displayIdMap: {
+            '@gv_custom_12345_name-=': '@变量.名称#1234',
+            '@gv_custom_67890_value-=': '@变量.值#6789'
+          }
+        },
+        nextNodeId: 'next-node-001',
+        executionData: {}
+      };
+
+      // 初始变量状态
+      const variables = {};
+      let updatedVariables = { ...variables };
+
+      // 变量更新函数
+      const updateVariables = (newVars) => {
+        console.log('变量已更新:', newVars);
+        updatedVariables = newVars;
+      };
+
+      // 1. 使用旧的调用方式测试
+      console.log('\n[测试1] 使用WorkflowEngine.executeAssignmentNode静态方法');
+      const oldResult = await mockEnvironment.WorkflowEngine.executeAssignmentNode(
+        node,
+        variables,
+        updateVariables
+      );
+      console.log('结果:', oldResult);
+      console.log('变量状态:', updatedVariables);
+
+      // 重置变量状态
+      updatedVariables = { ...variables };
+
+      // 2. 直接使用AssignmentNodeHandler测试
+      console.log('\n[测试2] 直接使用AssignmentNodeHandler');
+      const handler = new mockEnvironment.AssignmentNodeHandler();
+      
+      // 创建执行上下文
+      const context = {
+        variables: { ...variables },
+        output: null,
+        updateNode: (nodeId, updates) => {
+          console.log(`节点${nodeId}已更新:`, updates);
+          if (updates.output) {
+            context.output = updates.output;
+          }
+        },
+        moveToNextNode: (nodeId) => {
+          console.log(`移动到下一个节点: ${nodeId}`);
+        },
+        onError: (nodeId, error) => {
+          console.error(`节点${nodeId}执行出错:`, error);
+        }
+      };
+      
+      await handler.execute(node, context);
+      console.log('变量状态:', context.variables);
+      console.log('节点输出:', context.output);
+
+      console.log('\n==== 赋值节点处理器测试完成 ====');
+    }
+
+    // 事件处理
+    document.getElementById('runTestButton').addEventListener('click', function() {
+      outputDiv.innerHTML = '';
+      testAssignmentNode().catch(error => {
+        console.error('测试执行失败:', error);
+      });
+    });
+    
+    document.getElementById('clearButton').addEventListener('click', function() {
+      outputDiv.innerHTML = '';
+    });
+  </script>
+</body>
+</html>
