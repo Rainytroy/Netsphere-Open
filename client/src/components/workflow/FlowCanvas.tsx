@@ -434,12 +434,21 @@ const handleNodeDelete = useCallback((nodeId: string) => {
             type: cardData.type,
             title: cardData.title,
             description: cardData.description || '',
-            taskId: cardData.id,  // 明确设置taskId以便配置面板使用
+            // 同时设置taskId和workTaskId以支持新旧版本
+            taskId: cardData.id,
+            workTaskId: cardData.id,
             // 如果有可选属性，则复制
             ...(cardData.icon ? { icon: cardData.icon } : {}),
             ...(cardData.metadata ? { metadata: cardData.metadata } : {}),
-            // 添加默认配置，防止配置面板报错
-            config: cardData.config || {}
+            // 添加默认配置，包含ID信息，确保配置面板能正确使用
+            config: {
+              ...(cardData.config || {}),
+              // 在config中也设置两种ID，确保执行引擎和配置面板都能访问
+              taskId: cardData.id,
+              workTaskId: cardData.id,
+              // 添加节点名称信息
+              taskName: cardData.title
+            }
           }
         };
       } else {

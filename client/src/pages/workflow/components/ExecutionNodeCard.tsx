@@ -1,8 +1,31 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Card, Spin, Typography, Space, Button, Progress, Tag } from 'antd';
+import { Card, Spin, Typography, Space, Button, Progress, Tag, Descriptions } from 'antd';
 import { CopyOutlined, DownloadOutlined, CheckCircleFilled } from '@ant-design/icons';
 import { ExecutionVariableTransfer } from './variable';
+import { WorkTaskExecutor, ExecutionPhase } from './worktask';
 import { ExecutionNode, WorkTaskNodeOutput, DisplayNodeOutput, AssignmentNodeOutput, LoopNodeOutput } from '../types';
+
+// 为window对象添加workflowEngine属性和通知器的类型声明
+declare global {
+  interface Window {
+    workflowEngine?: {
+      updateNode: (nodeId: string, updates: Partial<ExecutionNode>) => void;
+      getNode?: (nodeId: string) => ExecutionNode | undefined;
+    };
+    // 工作任务完成通知器，用于节点间通信
+    workTaskCompletionNotifier?: {
+      // 注册任务完成回调
+      registerTaskCompletion: (nodeId: string, callback: () => void) => void;
+      // 触发任务完成通知
+      notifyTaskCompletion: (nodeId: string) => void;
+    };
+  }
+}
+
+// 扩展WorkTaskNodeOutput类型以包含result属性
+interface ExtendedWorkTaskNodeOutput extends WorkTaskNodeOutput {
+  result?: string;
+}
 import VariableThemeService from '../../../services/VariableThemeService';
 import IdentifierFormatterService from '../../../services/IdentifierFormatterService';
 import VariableSchemaService from '../../../services/VariableSchemaService';
@@ -161,41 +184,41 @@ const StartNodeContent: React.FC<{ node: ExecutionNode }> = ({ node }) => {
 };
 
 /**
- * 工作任务卡内容组件
+ * 循环卡内容组件
  */
-const WorkTaskNodeContent: React.FC<{ node: ExecutionNode }> = ({ node }) => {
-  const output = node.output as WorkTaskNodeOutput | undefined;
-  const { npc, taskName, status } = output || {};
+const LoopNodeContent: React.FC<{ node: ExecutionNode }> = ({ node }) => {
+  const output = node.output as LoopNodeOutput | undefined;
+  if (!output) return <Paragraph>循环条件尚未执行</Paragraph>;
   
-  return (
-    <div>
-      {npc ? (
+  const { conditionType, runCount, maxRuns, variablePath, result } = output;
+  
+  if (conditionType === 'runCount') {
+    return (
+      <div>
+        <Text strong>
+          【运行次数 {runCount}/{maxRuns}】
+        </Text>
         <Paragraph>
-          <Text strong>{npc}</Text> 负责的 <Text strong>{taskName}</Text> 正在运行
+          {runCount && maxRuns && runCount < maxRuns 
+            ? '继续循环肝' 
+            : '完成任务，交作业给下一个环节'}
         </Paragraph>
-      ) : (
+      </div>
+    );
+  } else {
+    return (
+      <div>
+        <Text strong>
+          【{variablePath}】的值
+        </Text>
         <Paragraph>
-          <Text strong>{taskName}</Text> 正在运行
+          {result === 'yes'
+            ? '符合Netsphere的想法，所以是YES'
+            : '不符合Netsphere的想法，所以是NO'}
         </Paragraph>
-      )}
-      
-      {/* 简化的任务状态展示 */}
-      {status && (
-        <div style={{ marginTop: 8 }}>
-          <Progress 
-            percent={status.progress} 
-            status={status.state === 'completed' ? 'success' : 
-                   status.state === 'error' ? 'exception' : 'active'} 
-            size="small" 
-          />
-          <div style={{ fontSize: '12px', color: '#666', marginTop: 4 }}>
-            {status.state === 'completed' ? '任务已完成' : 
-             status.state === 'error' ? '任务执行出错' : '任务执行中...'}
-          </div>
-        </div>
-      )}
-    </div>
-  );
+      </div>
+    );
+  }
 };
 
 /**
@@ -431,41 +454,164 @@ const AssignmentNodeContent: React.FC<{ node: ExecutionNode }> = ({ node }) => {
 };
 
 /**
- * 循环卡内容组件
+ * 工作任务卡内容组件
  */
-const LoopNodeContent: React.FC<{ node: ExecutionNode }> = ({ node }) => {
-  const output = node.output as LoopNodeOutput | undefined;
-  if (!output) return <Paragraph>循环条件尚未执行</Paragraph>;
+const WorkTaskNodeContent: React.FC<{ node: ExecutionNode }> = ({ node }) => {
+  const output = node.output as WorkTaskNodeOutput | undefined;
+  const [showDebug, setShowDebug] = useState(false);
   
-  const { conditionType, runCount, maxRuns, variablePath, result } = output;
+  // 提取必要的属性
+  const workTaskId = node.config?.workTaskId || output?.taskId;
+  const taskId = node.config?.taskId; // 用于调试，检查旧版属性
+  const taskName = output?.taskName || node.config?.taskName || node.name;
+  const npc = output?.npc || node.config?.npc;
+  const aiService = node.config?.aiService || '未定义';
+  const inputPrompt = node.config?.inputPrompt || node.config?.input || '未定义';
   
-  if (conditionType === 'runCount') {
+  // 处理状态变更回调
+  const handleStatusChange = (status: {
+    phase: ExecutionPhase;
+    progress: number;
+    message?: string;
+  }) => {
+    console.log(`[WorkTaskNodeContent] 任务状态更新: ${status.phase}, 进度: ${status.progress}%`);
+    
+    // 更新节点输出状态
+    if (node.id && status) {
+      // 更新节点输出
+      const nodeOutput: WorkTaskNodeOutput = {
+        ...(node.output as WorkTaskNodeOutput || {}),
+        taskName: taskName,
+        status: {
+          progress: status.progress,
+          state: status.phase === ExecutionPhase.COMPLETED ? 'completed' : 
+                 status.phase === ExecutionPhase.ERROR ? 'error' : 'running'
+        }
+      };
+      
+      // 通过WorkflowEngine更新节点
+      if (window.workflowEngine) {
+        window.workflowEngine.updateNode(node.id, { output: nodeOutput });
+        console.log(`[WorkTaskNodeContent] 更新节点输出: ${node.id}`, nodeOutput);
+      }
+    }
+  };
+  
+  // 处理完成回调
+  const handleComplete = (output: string) => {
+    console.log(`[WorkTaskNodeContent] 任务执行完成: ${workTaskId}, 输出: ${output.substring(0, 50)}...`);
+    
+    // 更新节点输出
+    if (node.id) {
+      const nodeOutput: ExtendedWorkTaskNodeOutput = {
+        ...(node.output as WorkTaskNodeOutput || {}),
+        taskName: taskName,
+        status: {
+          progress: 100,
+          state: 'completed'
+        },
+        result: output
+      };
+      
+      // 通过WorkflowEngine更新节点
+      if (window.workflowEngine) {
+        window.workflowEngine.updateNode(node.id, { 
+          output: nodeOutput as any, // 使用any类型绕过类型检查
+          status: 'completed'
+        });
+        console.log(`[WorkTaskNodeContent] 更新节点输出并标记完成: ${node.id}`);
+        
+        // UI组件处理完成后，通知任务节点真正完成了
+        // 这将触发WorkTaskNodeHandler中注册的回调，继而执行下一个节点
+        setTimeout(() => {
+          if (window.workTaskCompletionNotifier) {
+            console.log(`[WorkTaskNodeContent] 通知工作任务真正完成: ${node.id}`);
+            window.workTaskCompletionNotifier.notifyTaskCompletion(node.id);
+          }
+        }, 100); // 短暂延迟确保UI状态已更新，特别是变量写入完成
+      }
+    }
+  };
+  
+  // 调试面板显示核心信息
+  const renderDebugPanel = () => {
     return (
-      <div>
-        <Text strong>
-          【运行次数 {runCount}/{maxRuns}】
-        </Text>
-        <Paragraph>
-          {runCount && maxRuns && runCount < maxRuns 
-            ? '继续循环肝' 
-            : '完成任务，交作业给下一个环节'}
-        </Paragraph>
-      </div>
+      showDebug && (
+        <div style={{ 
+          padding: '12px', 
+          marginTop: '16px',
+          marginBottom: '10px',
+          backgroundColor: '#f5f5f5',
+          borderRadius: '6px',
+          border: '1px solid #e8e8e8'
+        }}>
+          <Typography.Title level={5} style={{ marginTop: 0, marginBottom: '16px' }}>
+            工作任务信息
+          </Typography.Title>
+          
+          <Descriptions bordered column={1} size="small">
+            <Descriptions.Item label="任务ID">
+              <Text code>{workTaskId || '未定义'}</Text>
+            </Descriptions.Item>
+            <Descriptions.Item label="名称">{taskName || '未定义'}</Descriptions.Item>
+            <Descriptions.Item label="状态">
+              {output?.status ? `${output.status.state} (${output.status.progress}%)` : '未执行'}
+            </Descriptions.Item>
+          </Descriptions>
+        </div>
+      )
     );
-  } else {
+  };
+  
+  // 如果没有任务ID，则回退到旧的展示方式
+  if (!workTaskId) {
     return (
       <div>
-        <Text strong>
-          【{variablePath}】的值
-        </Text>
         <Paragraph>
-          {result === 'yes'
-            ? '符合Netsphere的想法，所以是YES'
-            : '不符合Netsphere的想法，所以是NO'}
+          <Text strong>{taskName}</Text> 未配置任务ID，无法执行
         </Paragraph>
+        
+        <div style={{ marginTop: '16px', textAlign: 'left' }}>
+          <Button 
+            type="link" 
+            onClick={() => setShowDebug(!showDebug)}
+            style={{ padding: 0, color: '#1890ff' }}
+          >
+            {showDebug ? '隐藏详情' : '查看详情'}
+          </Button>
+        </div>
+        
+        {renderDebugPanel()}
       </div>
     );
   }
+  
+  // 使用新的工作任务执行器组件
+  return (
+    <div>
+      <WorkTaskExecutor
+        workTaskId={workTaskId}
+        taskName={taskName}
+        npc={npc}
+        autoExecute={node.status === 'executing' || node.status === 'completed'}
+        simplified={false}
+        onStatusChange={handleStatusChange}
+        onComplete={handleComplete}
+      />
+      
+      <div style={{ marginTop: '16px', textAlign: 'left' }}>
+        <Button 
+          type="link" 
+          onClick={() => setShowDebug(!showDebug)}
+          style={{ padding: 0, color: '#1890ff' }}
+        >
+          {showDebug ? '隐藏详情' : '查看详情'}
+        </Button>
+      </div>
+      
+      {renderDebugPanel()}
+    </div>
+  );
 };
 
 export default ExecutionNodeCard;

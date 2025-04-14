@@ -6,6 +6,57 @@
 import { ExecutionNode, WorkTaskNodeOutput } from '../../types';
 import { BaseNodeHandler, NodeExecutionContext } from './BaseNode';
 import { parseRawText } from '../utils/VariableParser';
+import workTaskService from '../../../../services/workTaskService';
+
+// 声明全局workflowEngine类型和任务完成通知器
+declare global {
+  interface Window {
+    workflowEngine?: {
+      updateNode: (nodeId: string, updates: Partial<ExecutionNode>) => void;
+      getNode?: (nodeId: string) => ExecutionNode | undefined;
+    };
+    // 新增全局任务完成通知器，用于节点间通信
+    workTaskCompletionNotifier?: {
+      // 注册一个任务完成的回调
+      registerTaskCompletion: (nodeId: string, callback: () => void) => void;
+      // 触发任务完成通知
+      notifyTaskCompletion: (nodeId: string) => void;
+    };
+  }
+}
+
+// 确保全局通知器存在
+function ensureGlobalNotifierExists() {
+  if (typeof window !== 'undefined' && !window.workTaskCompletionNotifier) {
+    const callbacks: Record<string, Array<() => void>> = {};
+    
+    window.workTaskCompletionNotifier = {
+      registerTaskCompletion: (nodeId: string, callback: () => void) => {
+        if (!callbacks[nodeId]) {
+          callbacks[nodeId] = [];
+        }
+        callbacks[nodeId].push(callback);
+        console.log(`[WorkTaskCompletionNotifier] 已注册节点完成回调: ${nodeId}`);
+      },
+      
+      notifyTaskCompletion: (nodeId: string) => {
+        console.log(`[WorkTaskCompletionNotifier] 收到节点完成通知: ${nodeId}`);
+        if (callbacks[nodeId] && callbacks[nodeId].length > 0) {
+          // 使用所有注册的回调
+          callbacks[nodeId].forEach(callback => {
+            try {
+              callback();
+            } catch (err) {
+              console.error(`[WorkTaskCompletionNotifier] 执行回调出错:`, err);
+            }
+          });
+          // 清除回调，防止多次触发
+          delete callbacks[nodeId];
+        }
+      }
+    };
+  }
+}
 
 export class WorkTaskNodeHandler extends BaseNodeHandler {
   /**
@@ -15,13 +66,21 @@ export class WorkTaskNodeHandler extends BaseNodeHandler {
    */
   async execute(node: ExecutionNode, context: NodeExecutionContext): Promise<void> {
     try {
+      // 确保全局通知器已初始化
+      ensureGlobalNotifierExists();
+      
       this.markExecuting(node, context);
       
-      // 获取任务配置
-      const { taskName, npc, taskTitle, taskDescription } = node.config || {};
+      // 获取任务配置，同时支持新旧两种ID命名
+      const { workTaskId, taskId, taskName, npc, taskTitle, taskDescription } = node.config || {};
       
-      if (!taskName) {
-        console.warn('[WorkTaskNode] 工作任务节点没有任务名称:', node.id);
+      // 优先使用workTaskId，其次使用taskId
+      const effectiveTaskId = workTaskId || taskId;
+      
+      if (!effectiveTaskId) {
+        console.warn('[WorkTaskNode] 工作任务节点没有指定任务ID (无workTaskId或taskId):', node.id);
+        this.markError(node, context, new Error('工作任务节点没有指定任务ID'));
+        return;
       }
       
       // 解析任务标题和描述中的变量 (V3.0格式)
@@ -33,6 +92,9 @@ export class WorkTaskNodeHandler extends BaseNodeHandler {
       
       // 创建任务输出
       const output: WorkTaskNodeOutput = {
+        // 同时保存两种ID格式，确保前后兼容
+        taskId: effectiveTaskId,
+        workTaskId: effectiveTaskId,
         taskName: parsedTitle,
         npc,
         status: {
@@ -41,59 +103,108 @@ export class WorkTaskNodeHandler extends BaseNodeHandler {
         }
       };
       
-      console.log(`[WorkTaskNode] 开始执行任务: ${parsedTitle}`);
+      console.log(`[WorkTaskNode] 开始执行任务: ${parsedTitle}, ID: ${effectiveTaskId}`);
       
-      // 标记任务开始
-      this.markCompleted(node, context, output);
+      // 更新节点输出
+      context.updateNode(node.id, { output });
       
-      // 模拟任务进度更新
-      this.simulateTaskProgress(node, context);
-      
-      // 在实际应用中，这里会调用API启动工作任务
-      // 由于是模拟，我们直接完成当前节点并继续下一个节点
-      setTimeout(() => {
-        // 任务执行完成后继续流程
-        context.moveToNextNode(node.nextNodeId);
-      }, 1000);
-      
-    } catch (error) {
-      console.error('[WorkTaskNode] 执行错误:', error);
-      this.markError(node, context, error instanceof Error ? error : new Error(String(error)));
-    }
-  }
-
-  /**
-   * 模拟任务进度更新
-   * 在实际应用中，这里会由服务端推送任务进度
-   */
-  private simulateTaskProgress(node: ExecutionNode, context: NodeExecutionContext): void {
-    let progress = 0;
-    
-    const progressInterval = setInterval(() => {
-      progress += 20;
-      
-      if (progress <= 100) {
-        // 更新任务进度
-        const output = node.output as WorkTaskNodeOutput;
-        const state = progress >= 100 ? 'completed' : 'running';
+      try {
+        // 实际调用API执行任务
+        const updatedTask = await workTaskService.executeWorkTask(effectiveTaskId);
         
+        if (updatedTask) {
+          // 获取任务输出
+          const taskOutput = updatedTask.output || '';
+          
+          // 更新节点输出，设置为API调用已完成但UI尚未完全更新状态
+          context.updateNode(node.id, {
+            output: {
+              ...output,
+              status: {
+                progress: 70, // 设置为70%，表示API调用已完成但UI动画还在进行中
+                state: 'running'
+              },
+              result: taskOutput // 保存API返回的结果
+            }
+          });
+          
+          console.log(`[WorkTaskNode] API调用完成: ${parsedTitle}, ID: ${effectiveTaskId}`);
+          
+          // 注册节点完成的回调，仅当UI组件触发完成通知时才继续
+          if (window.workTaskCompletionNotifier) {
+            console.log(`[WorkTaskNode] 注册节点完成回调: ${node.id}`);
+            
+            window.workTaskCompletionNotifier.registerTaskCompletion(node.id, () => {
+              console.log(`[WorkTaskNode] 收到组件完成通知，准备触发下一节点: ${node.nextNodeId}`);
+              
+              // 确保最终状态被设置为完成
+              const finalOutput: WorkTaskNodeOutput = {
+                ...output,
+                status: {
+                  progress: 100,
+                  state: 'completed'
+                },
+                result: taskOutput
+              };
+              
+              // 标记任务已完成
+              this.markCompleted(node, context, finalOutput);
+              
+              // 最终更新节点状态
+              context.updateNode(node.id, { 
+                output: finalOutput,
+                status: 'completed'
+              });
+              
+              // 直到此时才触发下一个节点
+              context.moveToNextNode(node.nextNodeId);
+            });
+            
+            // 注意: 此处不再直接调用moveToNextNode，
+            // 而是等待UI组件的回调通知
+          } else {
+            console.warn('[WorkTaskNode] 全局通知器未初始化，回退到直接触发下一节点');
+            
+            // 作为备选方案，如果通知器未初始化，仍直接触发下一节点
+            const finalOutput: WorkTaskNodeOutput = {
+              ...output,
+              status: {
+                progress: 100,
+                state: 'completed'
+              },
+              result: taskOutput
+            };
+            
+            this.markCompleted(node, context, finalOutput);
+            context.updateNode(node.id, { 
+              output: finalOutput,
+              status: 'completed'
+            });
+            context.moveToNextNode(node.nextNodeId);
+          }
+        } else {
+          throw new Error('未返回有效的工作任务数据');
+        }
+      } catch (apiError) {
+        console.error('[WorkTaskNode] API调用错误:', apiError);
+        
+        // 更新节点输出为错误状态
         context.updateNode(node.id, {
           output: {
             ...output,
             status: {
-              progress,
-              state
+              progress: 0,
+              state: 'error'
             }
           }
         });
         
-        console.log(`[WorkTaskNode] 任务进度更新: ${progress}%, 状态: ${state}`);
+        this.markError(node, context, apiError instanceof Error ? apiError : new Error(String(apiError)));
       }
-      
-      if (progress >= 100) {
-        clearInterval(progressInterval);
-      }
-    }, 500);
+    } catch (error) {
+      console.error('[WorkTaskNode] 执行错误:', error);
+      this.markError(node, context, error instanceof Error ? error : new Error(String(error)));
+    }
   }
 
   /**
@@ -107,6 +218,13 @@ export class WorkTaskNodeHandler extends BaseNodeHandler {
     // 工作任务节点必须是worktask类型
     if (node.type !== 'worktask') {
       console.warn('[WorkTaskNode] 节点类型不是worktask:', node.type);
+      return false;
+    }
+
+    // 工作任务节点必须有任务ID (支持两种命名)
+    const hasTaskId = node.config?.workTaskId || node.config?.taskId;
+    if (!hasTaskId) {
+      console.warn('[WorkTaskNode] 工作任务节点没有任务ID (无workTaskId和taskId)');
       return false;
     }
 

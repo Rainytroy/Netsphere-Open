@@ -399,9 +399,9 @@ const StartNodeConfig: React.FC<NodeConfigProps> = ({
         <Space>
           <Tag
             style={{
-              backgroundColor: '#F6FFED',
-              borderColor: '#52C41A',
-              color: '#52C41A',
+              backgroundColor: '#F9F0FF', // 工作流标准背景色（紫色）
+              borderColor: '#722ED1', // 工作流标准边框色（紫色）
+              color: '#722ED1', // 工作流标准文本颜色（紫色）
               fontSize: '12px',
               fontWeight: 500,
               padding: '4px 8px'

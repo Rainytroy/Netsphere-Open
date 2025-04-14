@@ -3,6 +3,8 @@ import { Card, Typography, Divider, Descriptions, Tag, Spin, Button, Space, Aler
 import { RobotOutlined } from '@ant-design/icons';
 import { NodeConfigProps } from './NodeConfigInterface';
 import workTaskService from '../../../services/workTaskService';
+import IdentifierFormatterService from '../../../services/IdentifierFormatterService';
+import VariableThemeService from '../../../services/VariableThemeService';
 
 const { Title, Text } = Typography;
 
@@ -71,15 +73,20 @@ const WorkTaskNodeConfig: React.FC<WorkTaskNodeConfigProps> = ({
       />
     );
   }
+  
+  // 调试信息 - 输出工作任务原始信息以检查数据结构
+  console.log('工作任务详情数据:', workTask);
 
   return (
     <Form
       id={`node-config-form-${nodeId}`}
       onFinish={() => {
-        // 保存当前配置，虽然没有可编辑的内容
+        // 保存当前配置，确保同时保存 workTaskId 和兼容旧版的 taskId
         const config = {
           ...initialConfig,
-          workTaskId
+          workTaskId,
+          // 为了向后兼容，保留 taskId
+          taskId: workTaskId
         };
         onSave(nodeId, config);
       }}
@@ -94,9 +101,41 @@ const WorkTaskNodeConfig: React.FC<WorkTaskNodeConfigProps> = ({
 
       <Card bordered={false}>
         <Descriptions title="工作任务信息" bordered column={1}>
+          {/* 新增：显示工作任务ID */}
+          <Descriptions.Item label="任务ID">
+            <Text code>{workTaskId}</Text>
+          </Descriptions.Item>
           <Descriptions.Item label="名称">{workTask.name}</Descriptions.Item>
-          <Descriptions.Item label="关联NPC">{workTask.npc?.name || '无'}</Descriptions.Item>
-          <Descriptions.Item label="AI服务">{workTask.aiService?.name || '无'}</Descriptions.Item>
+          {/* 修改：更灵活地处理NPC数据 */}
+          <Descriptions.Item label="关联NPC">
+            {(() => {
+              // 尝试不同可能的数据结构
+              if (workTask.npc && typeof workTask.npc === 'object' && workTask.npc.name) {
+                return workTask.npc.name;
+              } else if (workTask.npc && typeof workTask.npc === 'string') {
+                return workTask.npc;
+              } else if (workTask.npcName) {
+                return workTask.npcName;
+              } else {
+                return '无';
+              }
+            })()}
+          </Descriptions.Item>
+          {/* 修改：更灵活地处理AI服务数据 */}
+          <Descriptions.Item label="AI服务">
+            {(() => {
+              // 尝试不同可能的数据结构
+              if (workTask.aiService && typeof workTask.aiService === 'object' && workTask.aiService.name) {
+                return workTask.aiService.name;
+              } else if (workTask.aiService && typeof workTask.aiService === 'string') {
+                return workTask.aiService;
+              } else if (workTask.aiServiceName) {
+                return workTask.aiServiceName;
+              } else {
+                return '无';
+              }
+            })()}
+          </Descriptions.Item>
           <Descriptions.Item label="输入提示">
             <Text
               style={{ 
@@ -118,16 +157,33 @@ const WorkTaskNodeConfig: React.FC<WorkTaskNodeConfigProps> = ({
       <Divider />
 
       <Alert
-        message="变量引用"
+        message=""
         description={
           <div>
             <div>此工作任务的输出可通过以下变量引用：</div>
-            <Text code>{`@${workTask.name}.output`}</Text>
+            {/* 使用V3.0标准的变量标识符格式 */}
+            <div style={{ 
+              display: 'inline-block',
+              backgroundColor: '#E3F9D3', // 工作任务标准背景色（绿色）
+              border: '1px solid #389E0D', // 工作任务标准边框色（绿色）
+              borderRadius: '4px',
+              padding: '0px 4px',  // 更紧凑的内边距
+              margin: '0px',
+              marginTop: '4px'
+            }}>
+              <Text 
+                style={{ 
+                  color: '#389E0D'  // 工作任务标准文本颜色（绿色）
+                }}
+              >
+                {IdentifierFormatterService.formatDisplayIdentifier(workTask.name, 'output', workTaskId.substring(0, 8))}
+              </Text>
+            </div>
           </div>
         }
         type="info"
-        showIcon
-        style={{ marginBottom: 16 }}
+        showIcon={false} // 去掉图标
+        style={{ marginBottom: 16, background: '#F5F5F5', border: '1px solid #E8E8E8' }} // 灰色背景类似起点卡
       />
     </Form>
   );

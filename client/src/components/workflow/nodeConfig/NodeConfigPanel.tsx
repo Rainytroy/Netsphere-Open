@@ -123,7 +123,7 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
             nodeId={node.id}
             initialConfig={nodeConfig}
             onSave={handleSave}
-            workTaskId={node.data.taskId || node.data.id} // 优先使用taskId，兼容旧版本
+            workTaskId={node.data.workTaskId || node.data.taskId || node.data.id} // 优先使用workTaskId，然后是taskId，最后尝试使用id
           />
         );
       case 'assign':

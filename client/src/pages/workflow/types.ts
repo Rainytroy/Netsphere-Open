@@ -64,12 +64,15 @@ export interface WorkflowStructure {
  * 工作任务节点输出
  */
 export interface WorkTaskNodeOutput {
+  taskId?: string;        // 任务ID (旧版命名)，用于API调用
+  workTaskId?: string;    // 任务ID (新版命名)，用于API调用，与taskId保持一致
   npc?: string;
   taskName: string;
   status?: {
     progress: number;
     state: 'running' | 'completed' | 'error';
   };
+  result?: string;        // API调用的结果输出
 }
 
 /**
