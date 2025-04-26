@@ -58,3 +58,15 @@ data/
 # 临时文件
 *.tmp
 *.temp
+
+# 排除BUGFIX报告
+*BUGFIX*
+*bugfix*
+
+# 测试文件
+*test*
+*Test*
+*/test/*
+*/tests/*
+*/pages/demo/*
+*/SseTestPage*
