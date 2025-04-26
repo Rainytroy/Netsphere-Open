@@ -32,7 +32,7 @@ Netsphere是一个基于AI的工作流平台，用于创建AI驱动的NPC、设�
 
 1. 克隆仓库：
 ```bash
-git clone [https://github.com/your-username/netsphere.git](https://github.com/Rainytroy/Netsphere-Open.git)
+git clone https://github.com/Rainytroy/Netsphere-Open.git
 cd netsphere
 ```
 
