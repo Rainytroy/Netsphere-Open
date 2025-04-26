@@ -34,7 +34,16 @@ const LoopNodeConfig: React.FC<NodeConfigProps> = ({
   
   // VEX变量选择器状态
   const [modalVisible, setModalVisible] = useState(false);
-  const [variableTypeMap, setVariableTypeMap] = useState<Record<string, string>>({});
+  
+  // 维护变量类型映射，用于应用正确的样式
+  const [variableTypeMap, setVariableTypeMap] = useState<Record<string, string>>(
+    initialConfig?.variableTypes || {}
+  );
+  
+  // 维护系统标识符到显示标识符的映射，用于UI显示
+  const [displayIdMap, setDisplayIdMap] = useState<Record<string, string>>(
+    initialConfig?.displayIdMap || {}
+  );
   
   // 从VexWorkflowEditor借用的变量转换函数
   const convertToVexVariable = (variable: any): VariableData => {
@@ -191,17 +200,40 @@ const LoopNodeConfig: React.FC<NodeConfigProps> = ({
     console.log('变量路径已更新:', value);
   };
   
+  /**
+   * 获取变量的显示标识符
+   * 如果是系统标识符，转换为显示格式
+   */
+  const getDisplayIdentifier = (variableId: string): string => {
+    // 优先从缓存中获取显示标识符
+    if (displayIdMap[variableId]) {
+      return displayIdMap[variableId];
+    }
+    
+    // 如果变量ID本身就是显示格式(包含@和.)，直接返回
+    if (variableId && variableId.startsWith('@') && variableId.includes('.')) {
+      return variableId;
+    }
+    
+    return variableId;
+  };
+  
   // 验证变量合法性
   const validateVariableReference = (value: string) => {
     if (!value) return Promise.reject(new Error('变量引用不能为空'));
     
-    // 检查是否是标准变量格式 @xxx.yyy
-    const isValidFormat = /^@[a-zA-Z0-9_\u4e00-\u9fa5]+\.[a-zA-Z0-9_]+$/.test(value);
-    if (!isValidFormat) {
-      return Promise.reject(new Error('必须是有效的变量引用格式: @source.field'));
+    // 放宽变量验证，接受V3.0格式标识符
+    // 包括显示格式(@source.field#id)和系统格式(@gv_type_entityId_field-=)
+    if (
+      // 显示格式: @source.field 或 @source.field#id
+      (/^@[a-zA-Z0-9_\u4e00-\u9fa5]+\.[a-zA-Z0-9_]+(#[a-zA-Z0-9]{4})?$/.test(value)) ||
+      // 系统格式: @gv_type_entityId_field-=
+      (/^@gv_[a-zA-Z0-9_]+-[a-zA-Z0-9_\-]+-[a-zA-Z0-9_]+-=$/.test(value))
+    ) {
+      return Promise.resolve();
     }
     
-    return Promise.resolve();
+    return Promise.reject(new Error('必须是有效的变量引用格式'));
   };
 
   // 获取当前条件类型的说明文本
@@ -311,10 +343,36 @@ const LoopNodeConfig: React.FC<NodeConfigProps> = ({
       console.log('提交的变量路径:', conditionConfig.variablePath);
     }
     
+    // 保存当前的标识符映射和类型映射
+    const variableDisplayMap: Record<string, string> = {};
+    const variableTypes: Record<string, string> = {};
+    
+    // 如果有变量路径并且是variableValue类型条件
+    if (conditionConfig.variablePath && values.conditionType === 'variableValue') {
+      const displayId = getDisplayIdentifier(conditionConfig.variablePath);
+      
+      // 记录显示标识符映射
+      if (displayId !== conditionConfig.variablePath) {
+        variableDisplayMap[conditionConfig.variablePath] = displayId;
+      }
+      
+      // 保存变量类型信息
+      if (variableTypeMap[displayId]) {
+        variableTypes[displayId] = variableTypeMap[displayId];
+      }
+      
+      console.log('保存变量标识符映射和类型信息:', {
+        displayMap: variableDisplayMap,
+        typeMap: variableTypes
+      });
+    }
+    
     const config = {
       ...initialConfig,
       conditionType: values.conditionType,
-      conditionConfig
+      conditionConfig,
+      displayIdMap: variableDisplayMap, // 保存标识符映射关系
+      variableTypes: variableTypes // 保存变量类型映射关系
     };
     
     // 调用保存回调

@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { ensureGlobalVariableSyncEventListenerExists } from './services/VariableSyncEventListener';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ConfigProvider } from 'antd';
 import zhCN from 'antd/lib/locale/zh_CN';
@@ -8,11 +9,14 @@ import HomePage from './pages/HomePage';
 import NpcListPage from './pages/npc/NpcListPage';
 import NpcCreatePage from './pages/npc/NpcCreatePage';
 import NpcEditPage from './pages/npc/NpcEditPage';
+// 设置页面
+import SettingsPage from './pages/settings/SettingsPage';
 // 全局变量模块页面
 import VariableListPage from './pages/variable/VariableListPage';
 import VariableCreatePage from './pages/variable/VariableCreatePage';
 import VariableEditPage from './pages/variable/VariableEditPage';
 import VariableDebugPage from './pages/variable/VariableDebugPage';
+import SseTestPage from './pages/variable/SseTestPage';
 // AI服务模块页面
 import AiServiceListPage from './pages/aiService/AiServiceListPage';
 import AiServiceCreatePage from './pages/aiService/AiServiceCreatePage';
@@ -42,6 +46,13 @@ import AssignmentNodeDemo from './pages/workflow/demo/AssignmentNodeDemo';
 import { ENABLE_WORKFLOW } from './config';
 
 function App() {
+  // 初始化变量同步事件监听器 - 确保应用一启动就连接到SSE服务
+  React.useEffect(() => {
+    // 初始化全局变量同步事件监听器
+    ensureGlobalVariableSyncEventListenerExists();
+    console.log('[App] 已初始化变量同步事件监听器');
+  }, []);
+
   return (
     <ConfigProvider locale={zhCN}>
       <Router>
@@ -59,6 +70,9 @@ function App() {
             <Route path="/variable/create" element={<VariableCreatePage />} />
             <Route path="/variable/edit/:id" element={<VariableEditPage />} />
             <Route path="/variable/debug" element={<VariableDebugPage />} />
+            {/* Redirect to the new SSE test page */}
+            <Route path="/variable/sync-monitor" element={<SseTestPage />} />
+            <Route path="/variable/sse-test" element={<SseTestPage />} />
             
             {/* AI服务模块路由 */}
             <Route path="/ai-service" element={<AiServiceListPage />} />
@@ -89,6 +103,9 @@ function App() {
             <Route path="/demo/variable-editor-wrapper" element={<VariableEditorWrapperDemo />} />
             <Route path="/demo/execution-status" element={<ExecutionStatusDemo />} />
             <Route path="/demo/assignment-node" element={<AssignmentNodeDemo />} />
+            
+            {/* 设置页面路由 */}
+            <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Routes>
       </Router>

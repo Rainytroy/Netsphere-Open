@@ -1,0 +1,52 @@
+.settings-page .ant-card {
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.settings-page .ant-card-head {
+  border-bottom: 1px solid #f0f0f0;
+  padding: 16px 24px;
+}
+
+.settings-page .ant-card-head-title {
+  font-weight: 500;
+}
+
+.settings-page .ant-card-body {
+  padding: 24px;
+}
+
+.settings-page .ant-form-item-label > label {
+  font-weight: 500;
+}
+
+.settings-page .connection-status {
+  display: flex;
+  align-items: center;
+}
+
+.settings-page .ant-badge {
+  margin-left: 8px;
+}
+
+.settings-page .ant-typography.ant-typography-secondary {
+  font-size: 13px;
+}
+
+.settings-page .server-info-item {
+  margin-bottom: 8px;
+  display: flex;
+}
+
+.settings-page .server-info-label {
+  min-width: 140px;
+  font-weight: 500;
+}
+
+.settings-page .server-info-value {
+  word-break: break-all;
+}
+
+.settings-page .status-badge {
+  margin-left: 12px;
+}

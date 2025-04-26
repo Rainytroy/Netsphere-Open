@@ -1,121 +1,119 @@
 /**
- * 执行节点状态
+ * 工作流引擎类型定义
  */
-export type ExecutionNodeStatus = 'waiting' | 'executing' | 'completed' | 'error';
 
-/**
- * 执行节点类型
- * 注意: 统一使用前端命名习惯 - 'assign'代替'assignment', 'worktask'代替'workTask'
- */
-export type ExecutionNodeType = 'start' | 'worktask' | 'display' | 'assign' | 'loop';
-
-/**
- * 执行节点接口
- */
-export interface ExecutionNode {
-  id: string;
-  type: ExecutionNodeType;
-  name: string;
-  icon: React.ReactNode;
-  config: any;
-  status: ExecutionNodeStatus;
-  output?: any;
-  nextNodeId?: string;
-  executionData?: any;
+// 工作流基本信息
+export interface Workflow {
+  id: string;           // 工作流唯一ID
+  name: string;         // 工作流名称
+  description?: string; // 工作流描述
+  nodes: Node[];        // 节点列表
+  edges: Edge[];        // 边列表
+  createTime?: string;  // 创建时间
+  updateTime?: string;  // 更新时间
 }
 
-/**
- * 工作流节点配置
- */
-export interface WorkflowNodeConfig {
-  [key: string]: any;
+// 节点基本类型
+export interface Node {
+  id: string;           // 节点唯一ID
+  type: string;         // 节点类型
+  name: string;         // 节点名称
+  position: Position;   // 节点位置
+  config?: any;         // 节点配置
+  style?: any;          // 节点样式
 }
 
-/**
- * 工作流连接
- */
-export interface WorkflowConnection {
-  id: string;
-  sourceNodeId: string;
-  targetNodeId: string;
-  sourceHandle?: string;
-  targetHandle?: string;
-  label?: string;
+// 执行节点类型
+export interface ExecutionNode extends Node {
+  status: 'waiting' | 'executing' | 'completed' | 'error' | 'syncing'; // 添加'syncing'状态
+  output?: NodeOutput;  // 节点输出
+  error?: Error;        // 错误信息
+  executionData?: ExecutionData; // 执行数据
 }
 
-/**
- * 工作流结构
- */
-export interface WorkflowStructure {
-  nodes: {
-    id: string;
-    type: string;
-    name: string;
-    config: WorkflowNodeConfig;
-  }[];
-  connections: WorkflowConnection[];
-  metadata?: {
-    edges?: string | any[];
-    [key: string]: any;
+// 位置类型
+export interface Position {
+  x: number;
+  y: number;
+}
+
+// 边类型
+export interface Edge {
+  id: string;           // 边唯一ID
+  source: string;       // 源节点ID
+  target: string;       // 目标节点ID
+  type?: string;        // 边类型
+  label?: string;       // 边标签
+  animated?: boolean;   // 是否动画
+  style?: any;          // 边样式
+  markerEnd?: any;      // 边结束标记
+}
+
+// 节点状态类型
+export type NodeStatus = 'waiting' | 'executing' | 'completed' | 'error' | 'syncing';
+
+// 节点输出基类
+export interface NodeOutput {
+  [key: string]: any;   // 节点输出可以是任意类型
+}
+
+// 工作任务节点输出
+export interface WorkTaskNodeOutput extends NodeOutput {
+  taskId: string;       // 任务ID
+  workTaskId?: string;  // 工作任务ID（兼容旧版）
+  taskName: string;     // 任务名称
+  npc?: string;         // NPC名称
+  status: {             // 任务状态
+    progress: number;   // 进度（0-100）
+    state: 'running' | 'completed' | 'error' | 'syncing'; // 添加'syncing'状态
   };
 }
 
-/**
- * 工作任务节点输出
- */
-export interface WorkTaskNodeOutput {
-  taskId?: string;        // 任务ID (旧版命名)，用于API调用
-  workTaskId?: string;    // 任务ID (新版命名)，用于API调用，与taskId保持一致
-  npc?: string;
-  taskName: string;
-  status?: {
-    progress: number;
-    state: 'running' | 'completed' | 'error';
-  };
-  result?: string;        // API调用的结果输出
+// 显示节点输出
+export interface DisplayNodeOutput extends NodeOutput {
+  title?: string;       // 标题
+  content?: string;     // 内容
+  html?: string;        // HTML内容
+  theme?: 'light' | 'dark'; // 主题
 }
 
-/**
- * 展示节点输出
- */
-export interface DisplayNodeOutput {
-  content: string;
-  animationComplete: boolean;
-}
-
-/**
- * 赋值节点输出
- */
-export interface AssignmentNodeOutput {
-  assignments: {
-    sourceDisplayId: string;
-    targetDisplayId: string;
-    value: string;
-    rawValue?: string; // 原始值字段，用于调试和检查解析过程
-    variableContext?: {
-      // 完整的变量上下文，用于后续解析
-      sourceRaw?: string;     // 源变量标识符原始值
-      targetRaw?: string;     // 目标变量标识符原始值
-      variables: Record<string, any>; // 变量上下文
-    }
-  }[];
-  // 添加完整变量上下文信息
-  variableContext?: {
-    variables: Record<string, any>; // 所有变量的键值映射
-    displayIdMap?: Record<string, string>; // 系统标识符到显示标识符的映射
-    variableTypes?: Record<string, string>; // 变量标识符到变量类型的映射
+// 赋值节点输出
+export interface AssignmentNodeOutput extends NodeOutput {
+  assignments?: Array<{  // 赋值列表
+    sourceDisplayId: string; // 源变量显示ID
+    targetDisplayId: string; // 目标变量显示ID
+    value: any;         // 值
+  }>;
+  variableContext?: {   // 变量上下文
+    variables: Record<string, any>;  // 变量映射
+    displayIdMap: Record<string, string>; // 显示ID映射
+    variableTypes: Record<string, string>; // 变量类型映射
   };
 }
 
-/**
- * 循环节点输出
- */
-export interface LoopNodeOutput {
-  conditionType: 'runCount' | 'variableValue';
-  runCount?: number;
-  maxRuns?: number;
-  variablePath?: string;
-  expectedValue?: string;
-  actualValue?: string;
-  result: 'yes' | 'no';
+// 循环节点输出
+export interface LoopNodeOutput extends NodeOutput {
+  conditionType: 'runCount' | 'variableValue'; // 条件类型
+  runCount?: number;    // 当前运行次数
+  maxRuns?: number;     // 最大运行次数
+  variablePath?: string; // 变量路径
+  variableValue?: any;  // 变量值
+  result?: 'yes' | 'no'; // 条件结果
+  loopStatus?: 'continue' | 'break'; // 循环状态
+}
+
+// 执行数据
+export interface ExecutionData {
+  variables: Record<string, any>; // 变量集合
+  startTime?: number;   // 开始时间
+  endTime?: number;     // 结束时间
+  runCount?: number;    // 循环节点运行次数 - 添加循环计数支持
+}
+
+// 变量类型
+export interface Variable {
+  id: string;           // 变量ID
+  name: string;         // 变量名称
+  value: any;           // 变量值
+  type: string;         // 变量类型
 }

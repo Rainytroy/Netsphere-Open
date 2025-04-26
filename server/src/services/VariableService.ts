@@ -258,67 +258,53 @@ export class VariableService {
    * @param variableData 更新数据
    */
   public async updateVariable(id: string, variableData: UpdateVariableDto): Promise<Variable> {
-    const variableRepo = AppDataSource.getRepository(Variable);
-    
-    // 获取变量
-    const variable = await this.getVariableById(id);
-    
-    // 只允许更新自定义类型的变量
-    if (variable.type !== VariableType.CUSTOM) {
-      throw new Error(`只能更新自定义变量，当前变量类型: ${variable.type}`);
-    }
-    
-    // 检查是否修改了名称
-    const nameChanged = variableData.name && variableData.name !== variable.name;
-    
-    // 更新变量属性
-    if (variableData.name) {
-      variable.name = variableData.name;
-    }
-    
-    if (variableData.value !== undefined) {
-      variable.value = variableData.value;
-    }
-    
-    // 如果名称改变，更新标识符
-    if (nameChanged) {
-      // 确保有entityId，如果没有则使用id
-      const entityId = variable.entityId || variable.id;
+    try {
+      const variableRepo = AppDataSource.getRepository(Variable);
       
-      const newIdentifier = this.identifierFormatter.formatIdentifier(
-        'custom',
-        variable.name,
-        'value',
-        entityId
-      );
+      // 获取变量
+      const variable = await this.getVariableById(id);
       
-      // 检查新标识符是否已存在
-      const existingVariable = await variableRepo.findOne({ 
-        where: { identifier: newIdentifier } 
-      });
-      
-      if (existingVariable && existingVariable.id !== id) {
-        throw new Error(`标识符已存在: ${newIdentifier}`);
+      // 只允许更新自定义类型的变量
+      if (variable.type !== VariableType.CUSTOM) {
+        throw new Error(`只能更新自定义变量，当前变量类型: ${variable.type}`);
       }
       
-      variable.identifier = newIdentifier;
+      // 更新name和value字段 - 这些是实体的基本属性，可以直接更新
+      if (variableData.name) {
+        variable.name = variableData.name;
+      }
       
-      // 更新显示标识符
-      variable.displayIdentifier = this.identifierFormatter.formatDisplayIdentifier(
-        'custom',
-        variable.name, // 使用变量的实际名称
-        'value',
-        entityId
-      );
+      if (variableData.value !== undefined) {
+        variable.value = variableData.value;
+      }
+      
+      // 如果更新了名称，只更新显示标识符 - 这个只是展示用途，不影响系统引用
+      if (variableData.name) {
+        const entityId = variable.entityId || variable.id;
+        
+        // 更新displayIdentifier字段，用于UI友好显示
+        variable.displayIdentifier = this.identifierFormatter.formatDisplayIdentifier(
+          'custom',
+          variable.name,
+          variable.fieldname || 'value',
+          entityId
+        );
+        
+        // 注意：我们不更新系统标识符(identifier)，它基于实体ID保持稳定
+        // 这样系统中的任何引用都不会断裂
+      }
+      
+      // 保存更新
+      const updatedVariable = await variableRepo.save(variable);
+      
+      // 发布更新事件
+      this.eventPublisher.publish(VariableEventType.UPDATED, updatedVariable);
+      
+      return updatedVariable;
+    } catch (error) {
+      console.error(`变量更新失败 ID=${id}:`, error);
+      throw error;
     }
-    
-    // 保存更新
-    const updatedVariable = await variableRepo.save(variable);
-    
-    // 发布更新事件
-    this.eventPublisher.publish(VariableEventType.UPDATED, updatedVariable);
-    
-    return updatedVariable;
   }
   
   /**

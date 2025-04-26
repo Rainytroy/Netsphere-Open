@@ -32,6 +32,8 @@ const WorkflowEditorContent: React.FC<WorkflowEditorProps> = ({
     setName,
     description,
     setDescription,
+    isActive,
+    setIsActive,
     isEditingName,
     setIsEditingName,
     cardPanelVisible,
@@ -174,6 +176,16 @@ const WorkflowEditorContent: React.FC<WorkflowEditorProps> = ({
                     setDescription(value);
                   } else {
                     console.warn('[WorkflowEditor] setDescription函数不可用，无法更新description');
+                  }
+                  break;
+                
+                case 'isActive':
+                  // 处理工作流启用状态更新
+                  console.log('[WorkflowEditor] 更新工作流启用状态:', value);
+                  if (typeof setIsActive === 'function') {
+                    setIsActive(value === true); // 确保转换为布尔值
+                  } else {
+                    console.warn('[WorkflowEditor] setIsActive函数不可用，无法更新isActive');
                   }
                   break;
                   

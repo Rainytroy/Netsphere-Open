@@ -1,11 +1,47 @@
 import { 
   ExecutionNode, 
-  ExecutionNodeType, 
-  WorkflowStructure,
+  Node,
+  Edge,
   DisplayNodeOutput,
   WorkTaskNodeOutput,
-  ExecutionNodeStatus
+  NodeStatus,
+  ExecutionData
 } from './types';
+
+// 定义工作流结构接口
+interface WorkflowStructure {
+  nodes: Node[];
+  connections?: Array<{sourceNodeId: string; targetNodeId: string; label?: string}>;
+  metadata?: any;
+}
+
+// 定义执行节点类型
+type ExecutionNodeType = 'start' | 'worktask' | 'display' | 'assign' | 'loop';
+
+// 为Window添加变量同步通知器类型定义
+declare global {
+  interface Window {
+    variableSyncNotifier?: {
+      waitForSync: (variableId: string, callback: () => void, timeout?: number) => void;
+    };
+    workflowEngine?: {
+      updateNode: (nodeId: string, updates: Partial<ExecutionNode>) => void;
+      getNode?: (nodeId: string) => ExecutionNode | undefined;
+      getVariables?: () => Record<string, any>;
+    };
+  }
+}
+
+// 扩展ExecutionNode类型，添加引擎需要的额外属性
+interface EnhancedExecutionNode extends ExecutionNode {
+  nextNodeId?: string;
+  icon?: React.ReactNode;
+}
+
+// 扩展ExecutionData接口，确保必需属性
+interface EnhancedExecutionData extends ExecutionData {
+  runCount?: number;
+}
 import { workflowVariableService } from '../../services/workflowVariableService';
 import { ReactNode } from 'react';
 import { 
@@ -70,13 +106,10 @@ export class WorkflowEngine {
         // 尝试解析edges信息
         let edgesData;
         if (typeof structure.metadata.edges === 'string') {
-          console.log('[WorkflowEngine] 解析metadata.edges字符串');
           edgesData = JSON.parse(structure.metadata.edges);
         } else {
           edgesData = structure.metadata.edges;
         }
-        
-        console.log('[WorkflowEngine] 从metadata中读取到edges数据:', edgesData);
         
         // 处理边缘
         if (Array.isArray(edgesData)) {
@@ -89,7 +122,6 @@ export class WorkflowEngine {
                 label: label
               });
               connectionMap.set(source, sourceConnections);
-              console.log(`[WorkflowEngine] 添加连接: ${source} -> ${target}`);
             }
           });
         }
@@ -280,79 +312,224 @@ export class WorkflowEngine {
     return {};
   }
   
-  /**
-   * 执行工作任务卡节点
-   * @param node 执行节点
-   * @param updateNode 节点状态更新函数
-   * @returns 执行结果
-   */
-  static async executeWorkTaskNode(
-    node: ExecutionNode,
-    updateNode: (nodeId: string, status: string, output?: any) => void
-  ): Promise<WorkTaskNodeOutput> {
-    console.log(`开始执行工作任务卡: ${node.name}`);
+/**
+ * 确保全局变量同步通知器存在
+ * @returns 返回Promise，在通知器初始化完成后解析
+ */
+static ensureGlobalVariableSyncNotifierExists(): Promise<void> {
+  // 如果通知器已经存在，立即返回解析的Promise
+  if (typeof window !== 'undefined' && window.variableSyncNotifier) {
+    console.log('[WorkflowEngine] 全局变量同步通知器已存在，无需重新初始化');
+    return Promise.resolve();
+  }
+  
+  // 通知器不存在，返回初始化过程的Promise
+  return new Promise<void>((resolve, reject) => {
+    try {
+      // 动态导入VariableSyncNotifier
+      import('../../services/VariableSyncNotifier')
+        .then(({ variableSyncNotifier, ensureGlobalVariableSyncNotifierExists }) => {
+          // 确保全局变量同步通知器存在
+          ensureGlobalVariableSyncNotifierExists();
+          console.log('[WorkflowEngine] 全局变量同步通知器已初始化');
+          resolve(); // 初始化成功，解析Promise
+        })
+        .catch(err => {
+          console.error('[WorkflowEngine] 无法加载变量同步通知器:', err);
+          reject(err); // 初始化失败，拒绝Promise
+        });
+    } catch (error) {
+      console.error('[WorkflowEngine] 初始化全局变量同步通知器失败:', error);
+      reject(error); // 发生异常，拒绝Promise
+    }
+  });
+}
+
+/**
+ * 生成标准的V3变量ID
+ * 符合数据库格式: type_entityId_field
+ * @param type 变量类型 (如'task', 'workflow')
+ * @param entityId 实体ID
+ * @param field 字段名
+ * @returns 格式化的V3变量ID
+ */
+static generateV3VariableId(type: string, entityId: string, field: string): string {
+  return `${type.toLowerCase()}_${entityId}_${field}`;
+}
+
+/**
+ * 执行工作任务卡节点
+ * @param node 执行节点
+ * @param updateNode 节点状态更新函数
+ * @returns 执行结果
+ */
+static async executeWorkTaskNode(
+  node: ExecutionNode,
+  updateNode: (nodeId: string, status: string, output?: any) => void
+): Promise<WorkTaskNodeOutput> {
+  console.log(`开始执行工作任务卡: ${node.name}`);
+  
+  const { taskId, npcId, workTaskId } = node.config || {};
+  
+  // 使用workTaskId或taskId
+  const effectiveTaskId = workTaskId || taskId;
+  
+  if (!effectiveTaskId) {
+    throw new Error('工作任务节点没有指定任务ID');
+  }
+  
+  // 尝试获取NPC信息
+  let npcName = '';
+  if (npcId) {
+    try {
+      // 真实项目中应从后端获取NPC信息
+      // 这里我们简化处理，使用配置的NPC名称，如果没有则用"Unknown NPC"
+      npcName = node.config.npcName || 'Unknown NPC';
+    } catch (error) {
+      console.error(`获取NPC信息失败: ${error}`);
+      npcName = 'Unknown NPC';
+    }
+  }
+  
+  // 获取任务名称
+  const taskName = node.config.taskName || node.name;
+  
+  // 模拟任务执行过程
+  updateNode(node.id, 'executing', {
+    npc: npcName,
+    taskName,
+    taskId: effectiveTaskId,
+    workTaskId: effectiveTaskId,
+    status: {
+      progress: 10,
+      state: 'running'
+    }
+  });
+  
+  // 延迟模拟进度更新
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  updateNode(node.id, 'executing', {
+    npc: npcName,
+    taskName,
+    taskId: effectiveTaskId,
+    workTaskId: effectiveTaskId,
+    status: {
+      progress: 30,
+      state: 'running'
+    }
+  });
+  
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  updateNode(node.id, 'executing', {
+    npc: npcName,
+    taskName,
+    taskId: effectiveTaskId,
+    workTaskId: effectiveTaskId,
+    status: {
+      progress: 60,
+      state: 'running'
+    }
+  });
+  
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  
+  // 最终结果（API调用完成）
+  const finalOutput: WorkTaskNodeOutput = {
+    npc: npcName,
+    taskName,
+    taskId: effectiveTaskId,
+    workTaskId: effectiveTaskId,
+    status: {
+      progress: 80,
+      state: 'running'
+    }
+  };
+  
+  // 已经到了变量同步阶段 - 修改状态为syncing
+  console.log(`[WorkflowEngine] 工作任务API调用完成，等待变量同步: ${effectiveTaskId}`);
+  updateNode(node.id, 'syncing', {
+    ...finalOutput,
+    status: {
+      progress: 80,
+      state: 'syncing'
+    }
+  });
+  
+  try {
+    // 首先确保变量同步通知器已初始化 - 等待Promise完成
+    console.log(`[WorkflowEngine] 开始确保变量同步通知器初始化...`);
+    await this.ensureGlobalVariableSyncNotifierExists();
+    console.log(`[WorkflowEngine] 变量同步通知器初始化完成，继续执行`);
     
-    const { taskId, npcId } = node.config || {};
+    // 构建待检查的变量ID (V3格式的任务输出变量：task_taskId_output)
+    const variableId = this.generateV3VariableId('task', effectiveTaskId, 'output');
     
-    // 尝试获取NPC信息
-    let npcName = '';
-    if (npcId) {
-      try {
-        // 真实项目中应从后端获取NPC信息
-        // 这里我们简化处理，使用配置的NPC名称，如果没有则用"Unknown NPC"
-        npcName = node.config.npcName || 'Unknown NPC';
-      } catch (error) {
-        console.error(`获取NPC信息失败: ${error}`);
-        npcName = 'Unknown NPC';
-      }
+    // 记录同步开始时间用于调试
+    const syncStartTime = new Date().toISOString();
+    console.log(`[WorkflowEngine] [${syncStartTime}] 开始等待变量同步: ${variableId}`);
+    
+    // 确认变量同步通知器是否存在
+    if (!window.variableSyncNotifier) {
+      console.error(`[WorkflowEngine] 尽管初始化已完成，变量同步通知器仍然不存在，无法等待变量同步`);
+      throw new Error('变量同步通知器不可用');
     }
     
-    // 获取任务名称
-    const taskName = node.config.taskName || node.name;
-    
-    // 模拟任务执行过程
-    updateNode(node.id, 'executing', {
-      npc: npcName,
-      taskName,
-      status: {
-        progress: 10,
-        state: 'running'
-      }
+    // 等待变量同步完成
+    await new Promise<void>((resolve) => {
+      // 设置120秒(2分钟)超时，防止无限等待
+      const timeoutId = setTimeout(() => {
+        console.warn(`[WorkflowEngine] 变量同步等待超时: ${variableId}，用户需要手动完成`);
+        // 不再自动resolve()，让节点保持在syncing状态，用户手动触发
+      }, 120000);
+      
+      console.log(`[WorkflowEngine] 注册变量同步等待: ${variableId}`);
+      
+      // 等待变量同步
+      window.variableSyncNotifier.waitForSync(
+        variableId,
+        () => {
+          // 清除超时
+          clearTimeout(timeoutId);
+          const syncCompleteTime = new Date().toISOString();
+          console.log(`[WorkflowEngine] [${syncCompleteTime}] 变量同步完成: ${variableId}`);
+          
+          // 更新输出，显示变量已同步，但保持节点状态为syncing
+          // 只有用户手动完成才会改变节点状态
+          updateNode(node.id, 'syncing', {
+            ...finalOutput,
+            status: {
+              progress: 100,  // 更新进度为100%
+              state: 'syncing'  // 但状态仍为syncing
+            },
+            variableSyncStatus: '变量同步已完成，等待手动确认',
+            syncCompleteTime
+          });
+          
+          // 变量同步完成时不再自动resolve，保持节点在syncing状态
+          // 等待手动完成按钮触发
+        },
+        120000 // 120秒(2分钟)超时，更长时间
+      );
     });
-    
-    // 延迟模拟进度更新
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    updateNode(node.id, 'executing', {
-      npc: npcName,
-      taskName,
-      status: {
-        progress: 30,
-        state: 'running'
-      }
-    });
-    
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    updateNode(node.id, 'executing', {
-      npc: npcName,
-      taskName,
-      status: {
-        progress: 60,
-        state: 'running'
-      }
-    });
-    
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // 返回最终执行结果
-    return {
-      npc: npcName,
-      taskName,
-      status: {
-        progress: 100,
-        state: 'completed'
-      }
-    };
+  } catch (error) {
+    console.error('[WorkflowEngine] 等待变量同步时出错:', error);
+    // 继续执行，不中断工作流，但保持syncing状态
   }
+  
+  // 返回最终输出，但状态保持为syncing而不是completed
+  // 等待用户手动完成节点
+  return {
+    npc: npcName,
+    taskName,
+    taskId: effectiveTaskId,
+    workTaskId: effectiveTaskId,
+    status: {
+      progress: 100,
+      state: 'syncing'  // 保持syncing状态直到用户手动完成
+    },
+    manualCompletionRequired: true
+  };
+}
   
 /**
  * 执行展示卡节点
@@ -406,26 +583,38 @@ static async executeDisplayNode(
       存在未解析变量: processResult.hasUnresolvedVars
     });
     
-    // 渐进式展示内容
-    await displayContentProgressively(
-      processResult.content,
-      (content: string, animationComplete: boolean) => {
-        updateNode(node.id, 'executing', { content, animationComplete });
-      },
-      processResult.hasUnresolvedVars // 如果有未解析变量，禁用动画
-    );
-    
-    // 返回完整内容
-    return { 
-      content: processResult.content, 
-      animationComplete: true 
+    // 关键修改：内容解析完成后立即设置处理完毕状态
+    // 这使得节点在前端能够始终拿到解析后的完整内容
+    const finalOutput = {
+      content: processResult.content,
+      rawText: rawText,  // 保留原始文本用于调试
+      animationComplete: true,  // 标记内容处理已完成
+      displayMode: displayMode, // 保存显示模式供UI层判断是否使用动画
+      timestamps: {
+        contentReady: new Date().toISOString()
+      }
     };
+    
+    // 更新节点状态为executing并设置完整输出
+    // 状态将由NodeCompletionManager管理，不在这里设置为completed
+    updateNode(node.id, 'executing', finalOutput);
+    
+    // 渐进式动画效果完全由前端实现，与节点状态无关
+    // 不再需要等待displayContentProgressively完成
+    
+    // 等待短暂时间，让UI有机会获取完整内容
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
+    // 返回完整输出
+    return finalOutput;
   } catch (error) {
     logger.error(`解析展示卡内容失败:`, error);
-    return { 
+    const errorOutput = { 
       content: `展示卡内容解析错误: ${error instanceof Error ? error.message : String(error)}`, 
-      animationComplete: true 
+      animationComplete: true,
+      error: String(error)
     };
+    return errorOutput;
   }
 }
   
@@ -513,6 +702,47 @@ static async executeAssignmentNode(
 }
   
   /**
+   * 从显示标识符中获取系统标识符
+   * 从配置中的displayIdMap映射表中查找
+   */
+  private static getSystemIdFromDisplayId(displayId: string, config: any): string | null {
+    // 获取显示标识符到系统标识符的映射
+    const displayIdMap = config?.displayIdMap || {};
+    
+    // 反向查找对应的系统标识符
+    for (const [sysId, dispId] of Object.entries(displayIdMap)) {
+      if (dispId === displayId) {
+        console.log(`【DEBUG】找到系统标识符映射: ${displayId} -> ${sysId}`);
+        return sysId;
+      }
+    }
+    
+    console.log(`【DEBUG】未找到系统标识符映射: ${displayId}`);
+    return null;
+  }
+  
+  /**
+   * 从系统标识符解析变量ID
+   */
+  private static parseVariableIdentifier(identifier: string): { type: string; id: string; field: string; fullId: string } | null {
+    if (!identifier) return null;
+    
+    // 解析系统标识符
+    if (identifier.startsWith('@gv_') && identifier.endsWith('-=')) {
+      // 使用正则表达式解析
+      const match = identifier.match(/@gv_([a-zA-Z0-9]+)_([a-zA-Z0-9-]+)_([a-zA-Z0-9_]+)-=$/);
+      if (!match) return null;
+      
+      const [_, type, id, field] = match;
+      const fullId = `${type}_${id}_${field}`;
+      
+      return { type, id, field, fullId };
+    }
+    
+    return null;
+  }
+  
+  /**
    * 执行循环卡节点
    * @param node 执行节点
    * @param variables 当前变量状态
@@ -522,24 +752,43 @@ static async executeAssignmentNode(
     node: ExecutionNode,
     variables: Record<string, any>
   ): Promise<{ output: any; nextNodeId: string | undefined; executionData?: any }> {
-    console.log(`开始执行循环卡: ${node.name}`);
+    // 添加醒目的调试日志标记
+    console.log(`【DEBUG循环】开始执行循环卡: ${node.name}, 节点ID: ${node.id}`);
     
     const { conditionType, conditionConfig, yesNodeId, noNodeId } = node.config || {};
     
-    // 获取执行数据
+    // 调试日志，输出循环节点的配置信息
+    console.log(`【DEBUG循环】循环卡完整配置:`, {
+      节点ID: node.id,
+      条件类型: conditionType,
+      配置: conditionConfig,
+      是分支目标ID: yesNodeId,
+      否分支目标ID: noNodeId
+    });
+    
+    // 获取执行数据，更安全的方式
     const executionData = node.executionData || {};
     
+    // 输出当前执行数据，方便调试
+    console.log(`【DEBUG循环】当前执行数据:`, executionData);
+    
     if (conditionType === 'runCount') {
-      // 运行次数条件
-      const maxRuns = conditionConfig?.maxRuns || 3;
-      const runCount = (executionData.runCount || 0) + 1;
+      // 运行次数条件 - 使用更可靠的方式提取runCount
+      const maxRuns = Number(conditionConfig?.maxRuns) || 3;
       
-      // 更新执行数据
-      const newExecutionData = { ...executionData, runCount };
+      // 直接使用传入的runCount，不再递增 - 递增逻辑仅在WorkflowUsePage执行
+      // 确保runCount是数字
+      const runCount = typeof executionData.runCount === 'number' ? executionData.runCount : 0;
       
-      // 确定下一个节点
+      console.log(`【DEBUG循环】引擎接收到计数=${runCount}, 最大次数=${maxRuns}`);
+      
+      // 确定下一个节点 - 确保使用数字比较
       const result = runCount < maxRuns ? 'yes' : 'no';
       const nextNodeId = result === 'yes' ? yesNodeId : noNodeId;
+      
+      // 不更新计数，仅返回结果
+      
+      console.log(`【DEBUG循环】判断结果: ${result}, 下一节点ID: ${nextNodeId || '无'}`);
       
       return {
         output: {
@@ -549,7 +798,8 @@ static async executeAssignmentNode(
           result
         },
         nextNodeId,
-        executionData: newExecutionData
+        // 不修改计数，原样返回收到的executionData
+        executionData: executionData
       };
     } else if (conditionType === 'variableValue') {
       // 变量值条件
@@ -560,20 +810,44 @@ static async executeAssignmentNode(
       }
       
       try {
-        // 解析变量路径
-        const varMatch = variablePath.match(/@([^.]+)\.([^#]+)(?:#([a-zA-Z0-9]+))?/);
-        let actualValue = 'test';
+        console.log(`【DEBUG循环】处理变量值条件, 变量路径: ${variablePath}, 期望值: ${expectedValue}`);
         
-        if (varMatch) {
-          const sourceName = varMatch[1] as string;
-          const sourceField = varMatch[2] as string;
-          const key = `${sourceName}.${sourceField}`;
-          
-          // 从变量状态中获取实际值
-          if (variables[key] !== undefined) {
-            actualValue = variables[key];
-          }
+        // 第一步：从显示标识符获取系统标识符
+        const systemId = this.getSystemIdFromDisplayId(variablePath, node.config);
+        
+        if (!systemId) {
+          console.error(`【DEBUG循环】未找到变量 ${variablePath} 对应的系统标识符`);
+          throw new Error(`未找到变量 ${variablePath} 对应的系统标识符`);
         }
+        
+        // 第二步：解析系统标识符获取完整ID
+        const parsedVar = this.parseVariableIdentifier(systemId);
+        
+        if (!parsedVar) {
+          console.error(`【DEBUG循环】解析系统标识符失败: ${systemId}`);
+          throw new Error(`解析系统标识符失败: ${systemId}`);
+        }
+        
+        // 第三步：调用API获取变量最新值
+        console.log(`【DEBUG循环】从API获取变量值, ID: ${parsedVar.fullId}`);
+        
+        // 从variableService导入
+        const { variableService } = await import('../../services/variableService');
+        
+        // 直接从API获取变量
+        const response = await variableService.getVariable(parsedVar.fullId);
+        
+        // 检查响应结构
+        if (!response || !response.data) {
+          console.error(`【DEBUG循环】API返回异常:`, response);
+          throw new Error(`获取变量 ${parsedVar.fullId} 值失败: API返回异常`);
+        }
+        
+        // 使用类型断言处理响应数据
+        const variable = response.data as { value?: string; [key: string]: any };
+        const actualValue = variable.value || '';
+        
+        console.log(`【DEBUG循环】成功获取变量值: ${actualValue}, 期望值: ${expectedValue}`);
         
         // 比较值
         const result = String(actualValue) === String(expectedValue) ? 'yes' : 'no';
@@ -581,29 +855,24 @@ static async executeAssignmentNode(
         // 确定下一个节点
         const nextNodeId = result === 'yes' ? yesNodeId : noNodeId;
         
+        console.log(`【DEBUG循环】比较结果: ${result}, 下一节点ID: ${nextNodeId || '无'}`);
+        
         return {
           output: {
             conditionType,
             variablePath,
             expectedValue,
             actualValue,
-            result
+            result,
+            systemId,  // 保存系统标识符用于调试
+            variableId: parsedVar.fullId // 保存完整ID用于调试
           },
           nextNodeId
         };
       } catch (error) {
-        console.error(`获取变量值失败: ${variablePath}`, error);
-        // 默认走No路径
-        return {
-          output: {
-            conditionType,
-            variablePath,
-            expectedValue,
-            error: String(error),
-            result: 'no'
-          },
-          nextNodeId: noNodeId
-        };
+        console.error(`【ERROR】执行循环节点变量值条件失败:`, error);
+        // 抛出明确的错误，而不是静默走No路径
+        throw new Error(`变量值条件执行失败: ${error instanceof Error ? error.message : String(error)}`);
       }
     } else {
       throw new Error(`未知的条件类型: ${conditionType}`);

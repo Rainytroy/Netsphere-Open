@@ -1,8 +1,8 @@
 {
-  "version": "0.2.8",
+  "version": "0.5.0",
   "name": "Netsphere",
-  "timestamp": "2025-03-18T03:00:00+08:00",
-  "description": "变量标识符处理功能增强：改进变量ID识别和更新机制，修复连续变量处理问题，优化变量类型推断准确性，并启用自动更新功能。",
+  "timestamp": "2025-04-26T10:00:00+08:00",
+  "description": "工作流模块功能全量发布：支持工作流编辑、执行、可视化和变量同步，完善了节点间通信机制。",
   "modules": {
     "npc": {
       "status": "implementing",
@@ -13,8 +13,8 @@
       "version": "0.4.0"
     },
     "workflow": {
-      "status": "developing",
-      "version": "0.2.0"
+      "status": "completed",
+      "version": "0.5.0"
     },
     "variable": {
       "status": "completed",
@@ -28,55 +28,55 @@
   "components": {
     "server": {
       "path": "D:\\Netsphere\\server",
-      "lastModified": "2025-03-16T03:35:00+08:00"
+      "lastModified": "2025-04-26T10:00:00+08:00"
     },
     "client": {
       "path": "D:\\Netsphere\\client",
-      "lastModified": "2025-03-16T03:35:00+08:00"
+      "lastModified": "2025-04-26T10:00:00+08:00"
     },
     "docs": {
       "path": "D:\\Netsphere\\docs",
-      "lastModified": "2025-03-16T03:35:00+08:00"
+      "lastModified": "2025-04-26T10:00:00+08:00"
     }
   },
   "keyFiles": [
-    "D:\\Netsphere\\client\\src\\components\\variable\\VariableEditorUtils.ts",
-    "D:\\Netsphere\\client\\src\\utils\\VariableResolver.ts",
-    "D:\\Netsphere\\client\\src\\components\\variable\\VariableEditor2.tsx"
+    "D:\\Netsphere\\client\\src\\pages\\workflow\\WorkflowUsePage.tsx",
+    "D:\\Netsphere\\client\\src\\pages\\workflow\\WorkflowEngine.tsx",
+    "D:\\Netsphere\\client\\src\\pages\\workflow\\engine\\ExecutionManager.ts"
   ],
   "changes": [
     {
-      "type": "fix",
-      "file": "D:\\Netsphere\\client\\src\\components\\variable\\VariableEditorUtils.ts",
-      "description": "改进变量ID识别逻辑，增加词边界检查和变量处理去重机制"
-    },
-    {
-      "type": "fix",
-      "file": "D:\\Netsphere\\client\\src\\utils\\VariableResolver.ts",
-      "description": "重新启用并增强变量标识符更新功能，解决处理连续变量的问题"
+      "type": "enhancement",
+      "file": "D:\\Netsphere\\client\\src\\pages\\workflow\\WorkflowUsePage.tsx",
+      "description": "改进工作流执行UI，支持精简/详细两种显示模式，优化执行逻辑"
     },
     {
       "type": "enhancement",
-      "file": "D:\\Netsphere\\client\\src\\components\\variable\\VariableEditor2.tsx",
-      "description": "启用自动更新功能，使其使用增强版变量标识符处理逻辑"
+      "file": "D:\\Netsphere\\client\\src\\pages\\workflow\\WorkflowEngine.tsx",
+      "description": "增强变量同步和节点间通信机制，实现工作任务自动完成功能"
+    },
+    {
+      "type": "enhancement",
+      "file": "D:\\Netsphere\\client\\src\\pages\\workflow\\engine\\ExecutionManager.ts",
+      "description": "优化执行状态管理和节点转换，改进循环节点条件判断"
     },
     {
       "type": "docs",
-      "file": "D:\\Netsphere\\variable-id-bugfix-v0.2.8.md",
-      "description": "创建详细的变更文档，记录变量处理功能的改进和修复"
+      "file": "D:\\Netsphere\\README.md",
+      "description": "更新README文档，记录已知问题和下一步计划"
     }
   ],
   "recovery": {
-    "instructions": "如需恢复到此版本，请按照以下步骤操作：\n1. 确保已备份当前修改\n2. 执行以下命令切换到回滚分支：\n   git -C D:\\Netsphere checkout v0.2.8\n3. 使用 'start-dev.bat' 启动服务\n\n如果遇到服务启动问题，请使用 'stop-dev-simple.bat' 清理残留进程"
+    "instructions": "如需恢复到此版本，请按照以下步骤操作：\n1. 确保已备份当前修改\n2. 执行以下命令切换到回滚分支：\n   git -C D:\\Netsphere checkout v0.5.0\n3. 使用 'start-dev.bat' 启动服务\n\n如果遇到服务启动问题，请使用 'stop-dev-simple.bat' 清理残留进程"
   },
   "gitInfo": {
-    "tag": "v0.2.8",
-    "commitMessage": "fix: 变量标识符处理功能增强 v0.2.8",
-    "branch": "v0.2.8",
+    "tag": "v0.5.0",
+    "commitMessage": "feat: 工作流模块功能全量发布 v0.5.0",
+    "branch": "v0.5.0",
     "branches": {
-      "current": "v0.2.8",
-      "feature": "feature/variable-id-bugfix",
-      "related": ["v0.2.7", "master"]
+      "current": "v0.5.0",
+      "feature": "feature/workflow-execution-view",
+      "related": ["v0.4.5", "v0.2.8", "master"]
     }
   }
 }

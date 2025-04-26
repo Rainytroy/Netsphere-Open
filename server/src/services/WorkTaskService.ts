@@ -8,10 +8,12 @@ import { Npc } from '../models/Npc';
 import { AiService, AiServiceType } from '../models/AiService';
 import { DeepseekAdapter } from '../adapters/DeepseekAdapter';
 import { AnthropicAdapter } from '../adapters/AnthropicAdapter';
+import { VolcesAdapter } from '../adapters/VolcesAdapter';
 import { AiServiceAdapter, ChatMessage } from '../adapters/BaseAdapter';
 import { VariableService } from './VariableService';
 import { VariableServiceAdapter } from './adapters/VariableServiceAdapter';
 import { VariableResolver } from './VariableResolver';
+import { workTaskVariableService } from './WorkTaskVariableService';
 
 /**
  * 变量引用接口
@@ -573,6 +575,9 @@ export class WorkTaskService {
       case AiServiceType.ANTHROPIC:
         adapter = new AnthropicAdapter();
         break;
+      case AiServiceType.VOLCES:
+        adapter = new VolcesAdapter();
+        break;
       default:
         throw new Error(`不支持的服务类型: ${service.type}`);
     }
@@ -592,43 +597,83 @@ export class WorkTaskService {
   }
 
   /**
-   * 组合Prompt
-   * @param input 输入内容
-   * @param npcPromptTemplate NPC提示词模板
-   * @param debug 是否启用调试模式
-   * @returns 完整的Prompt
+   * 记录模板变量解析详情
+   * 辅助函数，用于分析模板变量解析的具体变化
    */
-  private async combinePrompt(input: string, npcPromptTemplate: string, debug = true): Promise<string> {
-    console.log(`[Prompt组合] ====== 开始组合Prompt ======`);
-    console.log(`[Prompt组合] 原始输入: "${input}"`);
-    console.log(`[Prompt组合] 原始模板: "${npcPromptTemplate}"`);
+  private logTemplateVariables(original: string, resolved: string): Array<{variable: string, value: string}> {
+    const result: Array<{variable: string, value: string}> = [];
     
-    // 解析输入和提示词模板中的变量引用
-    console.log(`[Prompt组合] 开始解析输入中的变量引用...`);
+    // 查找原始模板中的所有变量引用
+    const variablePattern = /@gv_[a-zA-Z0-9_-]+_[a-zA-Z0-9\-]+_[a-zA-Z0-9_-]+-=/g;
+    const matches = original.match(variablePattern);
+    
+    if (!matches) return result;
+    
+    // 对每个变量引用，分析其在解析后文本中的值
+    matches.forEach((variable: string) => {
+      // 找到变量在原始文本中的位置
+      const startIndex = original.indexOf(variable);
+      if (startIndex === -1) return;
+      
+      // 计算这个位置在解析后文本中对应的值
+      const beforeVar = original.substring(0, startIndex);
+      const afterVar = original.substring(startIndex + variable.length);
+      
+      // 在解析后文本中找出这个变量被替换成的值
+      const beforeInResolved = resolved.substring(0, beforeVar.length);
+      const restInResolved = resolved.substring(beforeVar.length);
+      
+      // 查找afterVar在restInResolved中的位置
+      const afterVarInResolvedIndex = restInResolved.indexOf(afterVar);
+      
+      if (afterVarInResolvedIndex > 0) {
+        // 提取变量值
+        const value = restInResolved.substring(0, afterVarInResolvedIndex);
+        result.push({ variable, value });
+      }
+    });
+    
+    return result;
+  }
+
+  private async combinePrompt(input: string, npcPromptTemplate: string, debug = true): Promise<string> {
+    console.log(`\n===== AI请求准备 =====`);
+    
+    // 处理用户输入
+    console.log(`[用户输入] 原始内容: "${input}"`);
     const resolvedInput = await this.resolveVariables(input, 5, debug);
     
-    console.log(`[Prompt组合] 开始解析模板中的变量引用...`);
+    if (input !== resolvedInput) {
+      console.log(`[用户输入] 解析结果: "${resolvedInput}" (包含变量)`);
+    } else {
+      console.log(`[用户输入] 解析结果: "${resolvedInput}" (无变量)`);
+    }
+    
+    // 处理NPC模板
+    console.log(`\n[模板] 原始内容: "${npcPromptTemplate}"`);
     const resolvedTemplate = await this.resolveVariables(npcPromptTemplate, 5, debug);
     
-    console.log(`[Prompt组合] 解析后输入: "${resolvedInput}"`);
-    console.log(`[Prompt组合] 解析后模板: "${resolvedTemplate}"`);
+    if (npcPromptTemplate !== resolvedTemplate) {
+      // 分析并记录模板中的变量解析
+      const templateDiff = this.logTemplateVariables(npcPromptTemplate, resolvedTemplate);
+      if (templateDiff.length > 0) {
+        console.log(`[模板] 变量解析详情:`);
+        templateDiff.forEach(item => {
+          console.log(`  • ${item.variable} → "${item.value}"`);
+        });
+      }
+      console.log(`[模板] 解析结果: "${resolvedTemplate}"`);
+    } else {
+      console.log(`[模板] 解析结果: "${resolvedTemplate}" (无变量)`);
+    }
     
     // 组合完整Prompt
     const fullPrompt = `${resolvedInput}\n\n${resolvedTemplate}`;
-    console.log(`[Prompt组合] 最终Prompt: "${fullPrompt}"`);
     
-    // 记录解析前后的差异
-    if (input !== resolvedInput) {
-      console.log(`[Prompt组合] 输入变量解析结果: 有变化`);
-    } else {
-      console.warn(`[Prompt组合] 输入变量解析结果: 无变化，请检查变量引用是否正确`);
-    }
-    
-    if (npcPromptTemplate !== resolvedTemplate) {
-      console.log(`[Prompt组合] 模板变量解析结果: 有变化`);
-    } else {
-      console.warn(`[Prompt组合] 模板变量解析结果: 无变化，请检查变量引用是否正确`);
-    }
+    // 明确显示最终提交给AI的Prompt
+    console.log(`\n===== 最终提交给AI的Prompt =====`);
+    console.log(fullPrompt);
+    console.log(`=====================================\n`);
     
     return fullPrompt;
   }
@@ -659,8 +704,9 @@ export class WorkTaskService {
     serverLogs?: string[]; // 服务器日志
   }> {
     try {
-      console.log('===== 测试执行工作任务 =====');
-      console.log('测试执行参数:', JSON.stringify(data, null, 2));
+      console.log('\n=================================================');
+      console.log('              测试工作任务执行                    ');
+      console.log('=================================================');
       
       // 验证参数
       if (!data.input || !data.aiServiceId) {
@@ -681,7 +727,9 @@ export class WorkTaskService {
       // 预处理输入文本，确保变量引用格式正确
       const processedInput = this.preprocessVariableReferences(data.input);
       if (processedInput !== data.input) {
-        console.log(`输入文本经过预处理，原文本: "${data.input}", 处理后: "${processedInput}"`);
+        console.log(`[预处理] 输入文本已优化: 
+原始: "${data.input}"
+处理后: "${processedInput}"`);
       }
       
       // 使用组合Prompt方法，会自动处理变量解析
@@ -691,10 +739,9 @@ export class WorkTaskService {
       const adapter = await this.getServiceAdapter(data.aiServiceId);
       
       // 记录AI调用开始
-      console.log('===== 准备调用AI服务 =====');
-      console.log('AI服务ID:', data.aiServiceId);
-      console.log('提示词长度:', fullPrompt.length, '字符');
-      console.log('提示词前100字符:', fullPrompt.substring(0, 100) + (fullPrompt.length > 100 ? '...' : ''));
+      console.log('\n===== 准备调用AI服务 =====');
+      console.log(`服务ID: ${data.aiServiceId}`);
+      console.log(`提示词: ${fullPrompt.length}字符`);
       
       let result;
       try {
@@ -704,7 +751,7 @@ export class WorkTaskService {
           content: fullPrompt
         };
         
-        console.log('正在发送请求到AI服务...');
+        console.log('发送请求到AI服务...');
         const startTime = Date.now();
         
         result = await adapter.chat([chatMessage]);
@@ -713,21 +760,27 @@ export class WorkTaskService {
         const duration = endTime - startTime;
         
         // 记录AI调用成功
-        console.log('===== AI服务调用成功 =====');
-        console.log('响应时间:', duration, 'ms');
-        console.log('输出长度:', result.content.length, '字符');
-        console.log('输出前100字符:', result.content.substring(0, 100) + (result.content.length > 100 ? '...' : ''));
+        console.log('\n===== AI服务响应 =====');
+        console.log(`响应时间: ${duration} ms`);
+        console.log(`输出长度: ${result.content.length} 字符`);
+        console.log(`输出预览: ${result.content.substring(0, 100)}${result.content.length > 100 ? '...' : ''}`);
       } catch (error) {
         // 记录AI调用失败
-        console.error('===== AI服务调用失败 =====');
-        console.error('错误信息:', error instanceof Error ? error.message : String(error));
-        console.error('错误详情:', error);
+        console.error('\n===== AI服务调用失败 =====');
+        console.error(`错误信息: ${error instanceof Error ? error.message : String(error)}`);
         throw error; // 重新抛出错误，由外层处理
       }
       
       // 解析后的输入和模板 (为了调试信息)
       const resolvedInput = await this.resolveVariables(processedInput);
       const resolvedTemplate = await this.resolveVariables(promptTemplate);
+      
+      console.log('\n===== 请求处理摘要 =====');
+      console.log(`原始输入: "${data.input}"`);
+      console.log(`解析输入: "${resolvedInput}"`);
+      console.log(`原始模板: "${promptTemplate}"`);
+      console.log(`解析模板: "${resolvedTemplate}"`);
+      console.log('=================================================\n');
       
       // 返回结果，包含可选的调试信息
       if (data.debug) {
@@ -746,7 +799,7 @@ export class WorkTaskService {
       }
     } catch (error) {
       const e = error as Error;
-      console.error(`测试执行工作任务失败: ${e.message}`, e);
+      console.error(`测试执行工作任务失败: ${e.message}`);
       throw new Error(`测试执行失败: ${e.message}`);
     }
   }
@@ -810,10 +863,35 @@ export class WorkTaskService {
         const result = await adapter.chat([chatMessage]);
         const output = result.content;
         
-        // 更新任务输出和状态
-        await this.updateTaskOutput(id, output, ExecutionStatus.COMPLETED);
+        // 步骤1: 先更新任务输出和状态到数据库
+        console.log(`[WorkTaskService] 保存AI输出到数据库，输出长度: ${output ? output.length : 0}字符`);
+        await this.workTaskRepository.update(id, {
+          output,
+          executionStatus: ExecutionStatus.COMPLETED
+        });
         
-        return this.getWorkTaskById(id);
+        // 步骤2: 确保数据库更新已完成
+        console.log(`[WorkTaskService] 数据库更新完成，开始更新变量...`);
+        
+        // 步骤3: 直接更新output变量，跳过复杂的同步逻辑
+        try {
+          console.log(`[WorkTaskService] 直接更新output变量，值长度: ${output.length}字符`);
+          // 直接调用变量服务的方法创建/更新变量，确保使用最新的输出
+          await workTaskVariableService.createOrUpdateTaskVariable(
+            id,
+            task.name,
+            'output',
+            output // 直接使用最新的输出结果
+          );
+          console.log(`[WorkTaskService] output变量更新成功`);
+        } catch (variableError) {
+          console.error(`[WorkTaskService] 更新output变量失败:`, variableError);
+          // 不因变量更新失败而中断任务执行
+        }
+        
+        // 获取完整的更新后任务，用于返回
+        const updatedTask = await this.getWorkTaskById(id);
+        return updatedTask;
       } catch (error) {
         // 处理执行过程中的错误
         const e = error as Error;

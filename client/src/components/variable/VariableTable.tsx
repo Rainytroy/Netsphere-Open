@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Table, Space, Button, Tooltip, Typography, message, Select, Input, Tag, Empty } from 'antd';
-import { CopyOutlined, EditOutlined, DeleteOutlined, UserOutlined, ExperimentOutlined, FileOutlined, PartitionOutlined, SearchOutlined, FormOutlined, InfoCircleOutlined, ReloadOutlined, ClearOutlined, AppstoreOutlined } from '@ant-design/icons';
+import { CopyOutlined, EditOutlined, DeleteOutlined, UserOutlined, ExperimentOutlined, FileOutlined, PartitionOutlined, SearchOutlined, FormOutlined, InfoCircleOutlined, ReloadOutlined, ClearOutlined, AppstoreOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { Variable, VariableType } from '../../services/variableService';
 import VariableTag from '../common/VariableTag';
 import DeleteConfirmModal from '../npc/DeleteConfirmModal';
@@ -401,6 +401,13 @@ const VariableTable: React.FC<VariableTableProps> = ({
                 type="default"
                 icon={<AppstoreOutlined />}
                 onClick={() => window.location.href = '/demo/variable-editor-wrapper'}
+              />
+            </Tooltip>
+            <Tooltip title="变量同步监控">
+              <Button 
+                type="default"
+                icon={<ThunderboltOutlined />}
+                onClick={() => window.location.href = '/variable/sse-test'}
               />
             </Tooltip>
           </Space>

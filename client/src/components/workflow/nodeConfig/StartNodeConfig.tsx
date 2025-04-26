@@ -28,8 +28,15 @@ const StartNodeConfig: React.FC<NodeConfigProps> = ({
   const [loading, setLoading] = useState(true);
   const [editorContent, setEditorContent] = useState<string>(initialConfig?.promptText || '这是工作流的起点');
   
-  // 工作流启用状态 - 默认为启用
-  const [isActive, setIsActive] = useState<boolean>(true);
+  // 获取工作流编辑器上下文
+  const workflowContext = useWorkflowEditor();
+  
+  // 工作流启用状态 - 直接从上下文获取初始值，如果没有则默认为启用
+  const [isActive, setIsActive] = useState<boolean>(workflowContext?.isActive ?? true);
+  
+  // 添加状态跟踪日志ID，方便在控制台中识别不同实例的日志
+  const logId = useRef(`startnode-${Date.now().toString(36)}`).current;
+  console.log(`[StartNodeConfig:${logId}] 组件初始化，从上下文获取初始isActive=${isActive}`);
   
   // 创建一个ref用于访问VexWorkflowEditor组件实例
   const editorRef = useRef<VexWorkflowEditorRef>(null);
@@ -39,40 +46,6 @@ const StartNodeConfig: React.FC<NodeConfigProps> = ({
   
   // 使用状态跟踪是否已经设置过初始内容，避免重复设置
   const [contentInitialized, setContentInitialized] = useState(false);
-  
-  // 获取工作流编辑器上下文
-  const workflowContext = useWorkflowEditor();
-  
-  // 初始化工作流启用状态
-  useEffect(() => {
-    const loadWorkflowStatus = async () => {
-      try {
-        // 尝试获取工作流ID
-        const formData = workflowContext?.prepareFormData?.() || {};
-        let workflowId = '';
-        
-        if (formData && typeof formData === 'object' && 'id' in formData && formData.id) {
-          workflowId = String(formData.id);
-          console.log(`[StartNodeConfig] 获取到工作流ID: ${workflowId}, 正在加载启用状态...`);
-          
-          // 获取工作流详情以获取isActive状态
-          if (workflowId) {
-            const workflow = await workflowService.getWorkflow(workflowId);
-            if (workflow) {
-              setIsActive(workflow.isActive);
-              console.log(`[StartNodeConfig] 工作流启用状态: ${workflow.isActive}`);
-            }
-          }
-        }
-      } catch (error) {
-        console.error('[StartNodeConfig] 加载工作流启用状态失败:', error);
-        // 默认为启用状态
-        setIsActive(true);
-      }
-    };
-    
-    loadWorkflowStatus();
-  }, [workflowContext]);
   
   // 分离内容初始化和焦点处理，确保只发生一次内容初始化
   useEffect(() => {
@@ -181,9 +154,15 @@ const StartNodeConfig: React.FC<NodeConfigProps> = ({
     }
   };
   
-  // 处理工作流启用状态变化
+  // 处理工作流启用状态变化 - 仅更新本地状态，不触发服务器交互
   const handleActiveChange = (checked: boolean) => {
+    console.log(`[StartNodeConfig:${logId}] 工作流启用状态变更(本地): ${isActive} -> ${checked}`);
     setIsActive(checked);
+    
+    // 更新上下文状态，确保工作流编辑器知道状态变化
+    if (updateEditorState) {
+      updateEditorState('isActive', checked);
+    }
   };
   
   // 优化表单提交处理，确保正确获取和提交内容
@@ -198,14 +177,22 @@ const StartNodeConfig: React.FC<NodeConfigProps> = ({
       values.promptText = values.promptText || '';
     }
     
-    // 简单调试日志
-    console.log(`[StartNodeConfig] 保存内容，启用状态: ${isActive}`);
+    // 详细日志：提交前记录所有关键值
+    console.log(`[StartNodeConfig:${logId}] 表单提交，当前状态:`, {
+      workflowId: nodeId,
+      promptText: finalPromptText ? finalPromptText.substring(0, 30) + '...' : '空',
+      isActive,
+      isActiveType: typeof isActive
+    });
     
-    // 构建最终配置 - 始终使用editorContent而不是表单值
+    // 构建最终配置 - 包含编辑器内容和工作流启用状态
     const config = {
       ...initialConfig,
-      promptText: finalPromptText // 确保使用编辑器内容
+      promptText: finalPromptText, // 确保使用编辑器内容
+      isActive: isActive // 包含工作流启用状态
     };
+    
+    console.log(`[StartNodeConfig:${logId}] 提交配置到父组件，包含isActive=${isActive}`);
     
     // 调用保存回调，传递节点ID和配置
     onSave(nodeId, config);
@@ -269,19 +256,24 @@ const StartNodeConfig: React.FC<NodeConfigProps> = ({
           const updateMessageKey = `update-workflow-${Date.now()}`;
           message.loading({ content: '正在保存工作流设置...', key: updateMessageKey, duration: 0 });
           
-          // 1. 更新工作流的description变量
-          await workflowVariableService.createOrUpdateWorkflowVariable(
-            workflowId,
-            workflowName,
-            'description',
-            parsedContent
-          );
+          // 更新工作流变量: 保存前记录详细日志
+          console.log(`[StartNodeConfig:${logId}] 保存前确认isActive=${isActive} (${typeof isActive})`);
           
-          // 2. 更新工作流的isActive状态和description属性
+          // 使用工作流服务更新description和isActive状态
+          console.log(`[StartNodeConfig:${logId}] 仅通过updateWorkflow更新服务器状态`);
           await workflowService.updateWorkflow(workflowId, {
             description: parsedContent,
             isActive: isActive
           });
+          
+          // 使用updateWorkflowVariables同步变量系统，替换原有的初始化和创建方法
+          console.log(`[StartNodeConfig:${logId}] 使用updateWorkflowVariables同步变量系统`);
+          await workflowVariableService.updateWorkflowVariables(
+            workflowId,
+            workflowName,
+            parsedContent,
+            isActive
+          );
           
           // 更新成功提示
           message.success({ 

@@ -35,8 +35,14 @@ const AiServiceForm: React.FC<AiServiceFormProps> = ({
     // 更新默认模型
     form.setFieldsValue({ 
       defaultModel: template.defaultModel,
-      // 如果不需要baseUrl，则清空
-      ...(template.requiresBaseUrl ? {} : { baseUrl: undefined })
+      // 根据服务类型设置正确的baseUrl
+      ...(template.requiresBaseUrl 
+        ? { 
+            baseUrl: serviceType === AiServiceType.VOLCES 
+              ? 'https://ark.cn-beijing.volces.com/api/v3'
+              : 'https://api.deepseek.com'
+          } 
+        : { baseUrl: undefined })
     });
     
     // 重置配置字段为默认值
@@ -50,9 +56,20 @@ const AiServiceForm: React.FC<AiServiceFormProps> = ({
   
   // 处理表单提交
   const handleSubmit = (values: any) => {
+    // 提取config中的useStream字段（仅适用于DeepSeek服务）
+    const { config } = values;
+    let useStream = undefined;
+    
+    if (serviceType === AiServiceType.DEEPSEEK && config?.useStream !== undefined) {
+      useStream = config.useStream;
+      // 可以选择从config中删除这个字段，避免数据冗余
+      // 但为了保持一致性，这里保留在config中
+    }
+    
     onSubmit({
       ...values,
-      type: serviceType
+      type: serviceType,
+      useStream // 添加顶级useStream属性
     });
   };
   
@@ -94,7 +111,11 @@ const AiServiceForm: React.FC<AiServiceFormProps> = ({
         type: AiServiceType.DEEPSEEK,
         name: '',
         apiKey: '',
-        baseUrl: currentTemplate.requiresBaseUrl ? 'https://api.deepseek.com' : undefined,
+        baseUrl: currentTemplate.requiresBaseUrl 
+          ? (serviceType === AiServiceType.VOLCES 
+              ? 'https://ark.cn-beijing.volces.com/api/v3'
+              : 'https://api.deepseek.com') 
+          : undefined,
         defaultModel: currentTemplate.defaultModel,
         config: currentTemplate.configFields.reduce((acc, field) => {
           acc[field.name] = field.defaultValue;
@@ -127,6 +148,10 @@ const AiServiceForm: React.FC<AiServiceFormProps> = ({
             { 
               value: AiServiceType.ANTHROPIC, 
               label: getServiceTypeLabel(AiServiceType.ANTHROPIC)
+            },
+            {
+              value: AiServiceType.VOLCES,
+              label: getServiceTypeLabel(AiServiceType.VOLCES)
             }
           ]}
           optionRender={(option) => (

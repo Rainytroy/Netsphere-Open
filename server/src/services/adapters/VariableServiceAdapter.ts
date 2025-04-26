@@ -8,6 +8,7 @@ import { VariableService, variableService } from "../VariableService";
  * - 系统标识符格式: @gv_UUID_字段
  * 
  * 2025.03.27更新：增强了标识符解析能力，增加了模糊匹配和兼容处理
+ * 2025.04.25更新：调整V3格式变量处理逻辑，确保精确解析变量
  */
 export class VariableServiceAdapter {
   private variableService: VariableService;
@@ -441,59 +442,45 @@ export class VariableServiceAdapter {
    */
   async getVariableValueByTypeAndId(type: string, entityId: string, field: string): Promise<any> {
     try {
-      console.log(`[VariableAdapter-v3.0] 查找变量: 类型=${type}, 实体ID=${entityId}, 字段=${field}`);
+      console.log(`[VariableAdapter-v3.0] 查找V3格式变量: 类型=${type}, 实体ID=${entityId}, 字段=${field}`);
       
-      // 获取所有变量
+      // 构造标准的数据库ID (type_entityId_field)
+      const dbId = `${type.toLowerCase()}_${entityId}_${field}`;
+      console.log(`[VariableAdapter-v3.0] 生成数据库ID: ${dbId}`);
+      
+      // 直接通过数据库ID查询变量
+      try {
+        const value = await this.getVariableValueById(dbId);
+        if (value !== undefined) {
+          console.log(`[VariableAdapter-v3.0] 通过数据库ID找到变量: ${dbId} = ${value}`);
+          return value;
+        }
+      } catch (error) {
+        console.error(`[VariableAdapter-v3.0] 通过数据库ID查询失败: ${dbId}`, error);
+        // 出错时继续检查其他方式
+      }
+      
+      // 如果数据库ID查询失败，尝试精确查询
       const variables = await this.variableService.getVariables();
       
-      // 精确匹配阶段 - 优先尝试精确匹配
+      // 只使用精确匹配
       for (const variable of variables) {
-        // 检查类型、实体ID和字段是否完全匹配
+        // 精确匹配类型
         const matchesType = variable.type?.toLowerCase() === type.toLowerCase();
+        // 精确匹配实体ID
         const matchesEntityId = variable.entityId === entityId || 
                                (variable.source && variable.source.id === entityId);
+        // 精确匹配字段名
         const matchesField = variable.name === field;
         
         if (matchesType && matchesEntityId && matchesField) {
-          console.log(`[VariableAdapter-v3.0] 通过精确类型、实体ID和字段匹配找到变量: ${variable.type}.${variable.entityId}.${variable.name}`);
+          console.log(`[VariableAdapter-v3.0] 通过精确类型、实体ID和字段匹配找到变量: ${variable.type}.${variable.entityId}.${variable.name} = ${variable.value}`);
           return variable.value;
         }
       }
       
-      // 模糊匹配阶段
-      const typeAndEntityMatches = variables.filter(variable => {
-        // 检查类型是否匹配（模糊匹配）
-        const variableType = (variable.type || '').toLowerCase();
-        const searchType = type.toLowerCase();
-        const typeMatches = variableType === searchType || 
-                           variableType.includes(searchType) || 
-                           searchType.includes(variableType);
-        
-        // 检查实体ID是否模糊匹配
-        const entityMatches = this.idMightMatch(variable.entityId || '', entityId) || 
-                             (variable.source && this.idMightMatch(variable.source.id || '', entityId));
-        
-        return typeMatches && entityMatches;
-      });
-      
-      if (typeAndEntityMatches.length > 0) {
-        console.log(`[VariableAdapter-v3.0] 找到${typeAndEntityMatches.length}个类型和实体ID模糊匹配的变量`);
-        
-        // 尝试在模糊匹配中找到字段匹配的变量
-        const fieldMatch = typeAndEntityMatches.find(v => v.name === field);
-        if (fieldMatch) {
-          console.log(`[VariableAdapter-v3.0] 在模糊匹配中找到字段匹配的变量: ${fieldMatch.type}.${fieldMatch.entityId}.${fieldMatch.name}`);
-          return fieldMatch.value;
-        }
-        
-        // 如果找不到字段匹配，使用第一个匹配结果
-        console.log(`[VariableAdapter-v3.0] 未找到字段匹配，使用首个模糊匹配变量: ${typeAndEntityMatches[0].name}`);
-        return typeAndEntityMatches[0].value;
-      }
-      
-      // 回退到UUID查找
-      console.log(`[VariableAdapter-v3.0] 未找到类型和实体ID匹配，尝试使用entityId作为UUID`);
-      return await this.getVariableValueByUUID(entityId, field);
+      console.log(`[VariableAdapter-v3.0] 未找到V3格式变量: ${dbId}`);
+      return undefined;
     } catch (error) {
       console.error(`[VariableAdapter-v3.0] 通过类型和实体ID获取变量值失败 (${type}.${entityId}.${field}):`, error);
       throw error;

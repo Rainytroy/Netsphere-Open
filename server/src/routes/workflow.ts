@@ -2,6 +2,7 @@ import express from "express";
 import { WorkflowController } from "../controllers/WorkflowController";
 import { WorkflowNodeController } from "../controllers/WorkflowNodeController";
 import { WorkflowConnectionController } from "../controllers/WorkflowConnectionController";
+import { workflowVariableController } from "../controllers/WorkflowVariableController";
 
 const router = express.Router();
 const workflowController = new WorkflowController();
@@ -93,5 +94,13 @@ router.post("/:workflowId/connections", connectionController.createConnection);
 router.get("/:workflowId/connections/:connectionId", connectionController.getConnectionById);
 router.put("/:workflowId/connections/:connectionId", connectionController.updateConnection);
 router.delete("/:workflowId/connections/:connectionId", connectionController.deleteConnection);
+
+/**
+ * 工作流变量相关路由
+ */
+router.get("/:workflowId/variables", workflowVariableController.getWorkflowVariables);
+router.post("/:workflowId/variables", workflowVariableController.createOrUpdateWorkflowVariable);
+router.delete("/:workflowId/variables", workflowVariableController.deleteWorkflowVariables);
+router.post("/init-variables", workflowVariableController.initWorkflowBaseVariables);
 
 export default router;

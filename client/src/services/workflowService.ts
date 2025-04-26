@@ -165,6 +165,8 @@ class WorkflowService {
     // 确保metadata存在，但不再自动添加起点卡
     const updatedData = {
       ...data,
+      // 如果未指定isActive，默认设置为true
+      isActive: data.isActive !== undefined ? data.isActive : true,
       metadata: {
         ...(data.metadata || {}),
         nodes: JSON.stringify([]),
@@ -297,12 +299,27 @@ class WorkflowService {
     // 通知进度：开始保存
     onProgress(SaveWorkflowPhase.SAVING, "正在保存工作流...");
     
+    // 特别记录isActive字段的状态
+    if ('isActive' in data) {
+      console.log(`[WorkflowService] [${reqId}] 正在更新工作流启用状态: ${data.isActive} (${typeof data.isActive})`);
+    }
+    
     try {
       // 步骤1: 保存工作流数据到服务器
       const updateStartTime = Date.now();
       const url = `${API_BASE_URL}/workflows/${id}`;
       
-      console.log(`[WorkflowService] [${reqId}] 发送PUT请求到 ${url}`);
+      console.log(`[WorkflowService] [${reqId}] 发送PUT请求到 ${url}, 数据:`, {
+        ...data,
+        // 特别显示isActive字段的详细信息
+        isActive: data.isActive !== undefined ? {
+          value: data.isActive,
+          type: typeof data.isActive,
+          toString: String(data.isActive)
+        } : undefined,
+        description: data.description ? `${data.description.substring(0, 30)}...` : undefined
+      });
+      
       const response = await axios.put(url, data);
       
       const updateDuration = Date.now() - updateStartTime;

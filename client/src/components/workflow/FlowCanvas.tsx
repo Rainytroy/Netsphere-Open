@@ -127,10 +127,10 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
     // 根据sourceHandle确定连接类型，用于循环节点的不同输出
     if (connection.sourceHandle === 'yes') {
       edgeClassName = 'edge-yes';
-      edgeLabel = '是';
+      edgeLabel = 'yes';  // 修改为英文标签，与引擎匹配
     } else if (connection.sourceHandle === 'no') {
       edgeClassName = 'edge-no';
-      edgeLabel = '否';
+      edgeLabel = 'no';   // 修改为英文标签，与引擎匹配
     }
     
     try {

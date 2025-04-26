@@ -31,6 +31,10 @@ interface DeepSeekResponse {
 
 /**
  * DeepSeek API适配器
+ * 
+ * 注意：使用此适配器需要设置您自己的DeepSeek API密钥
+ * 在项目根目录的.env文件中设置ENCRYPTION_KEY环境变量
+ * 然后通过Web界面配置服务
  */
 export class DeepseekAdapter implements AiServiceAdapter {
   private service: AiService | null = null;
@@ -77,7 +81,7 @@ export class DeepseekAdapter implements AiServiceAdapter {
           messages,
           temperature,
           max_tokens: maxTokens,
-          stream: false
+          stream: this.service.useStream || false
         },
         {
           headers: {

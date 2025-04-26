@@ -4,12 +4,13 @@
 
 ## 文档信息
 
-**版本号**: v1.0.6  
+**版本号**: v1.1.0  
 **创建时间**: 2025年3月15日 00:26  
-**更新时间**: 2025年3月25日 20:16  
+**更新时间**: 2025年4月20日 23:36  
 **文档状态**: 已更新  
 
 ### 更新记录
+- **v1.1.0** (2025年4月20日 23:36): 更新工作流模块文档和示例文件，添加工作流执行视图设计文档
 - **v1.0.6** (2025年3月25日 20:16): 更新变量系统文档至v2.2.0，更新变量编辑器文档至v1.2.2
 - **v1.0.5** (2025年3月24日 16:13): 更新变量编辑器文档，使用VariableEditorX (v1.1.0)替代旧版变量编辑器
 - **v1.0.4** (2025年3月18日 18:11): 更新变量系统文档以反映最新的UUID标识符格式`@gv_UUID_field`
@@ -47,6 +48,18 @@
 | [docs/workflow-module-technical-spec.md](/docs/workflow-module-technical-spec.md) | 工作流模块的技术规范 |
 | [docs/workflow-module-api-spec.md](/docs/workflow-module-api-spec.md) | 工作流模块的API接口定义 |
 | [docs/workflow-module-ui-component-spec.md](/docs/workflow-module-ui-component-spec.md) | 工作流模块的UI组件规范 |
+
+## 工作流执行设计文档
+
+| 文档路径 | 描述 |
+|---------|------|
+| [docs/workflow-module/workflow-execution-view-design-part1.md](/docs/workflow-module/workflow-execution-view-design-part1.md) | 工作流执行视图设计第1部分：概述与架构 |
+| [docs/workflow-module/workflow-execution-view-design-part2.md](/docs/workflow-module/workflow-execution-view-design-part2.md) | 工作流执行视图设计第2部分：节点组件设计 |
+| [docs/workflow-module/workflow-execution-view-design-part3.md](/docs/workflow-module/workflow-execution-view-design-part3.md) | 工作流执行视图设计第3部分：执行引擎实现 |
+| [docs/workflow-module/workflow-execution-view-design-part4.md](/docs/workflow-module/workflow-execution-view-design-part4.md) | 工作流执行视图设计第4部分：集成与实现方案 |
+| [docs/workflow-module/variable-content-handler-design.md](/docs/workflow-module/variable-content-handler-design.md) | 变量内容处理服务设计方案 |
+| [docs/workflow-module/workflow-variable-api-implementation.md](/docs/workflow-module/workflow-variable-api-implementation.md) | 工作流变量注册系统设计 |
+| [docs/workflow-module/node-naming-standardization.md](/docs/workflow-module/node-naming-standardization.md) | 工作流节点命名标准化备忘录 |
 
 ## 开发守则与实现指南
 

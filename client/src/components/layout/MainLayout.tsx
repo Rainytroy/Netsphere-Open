@@ -1,59 +1,14 @@
 import * as React from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
-import { Layout, Menu, Typography } from 'antd';
-import { ENABLE_WORKFLOW } from '../../config';
-import {
-  AppstoreOutlined,
-  UserOutlined,
-  SettingOutlined,
-  ExperimentOutlined,
-  PartitionOutlined,
-  DatabaseOutlined,
-  ApiOutlined,
-} from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
+import { Layout, Typography } from 'antd';
+import SideMenu from './SideMenu';
 
 const { Header, Content, Sider } = Layout;
 const { Title } = Typography;
 
 const MainLayout: React.FC = () => {
   const [collapsed, setCollapsed] = React.useState(false);
-  const navigate = useNavigate();
   const location = useLocation();
-  
-  // 根据当前路径确定选中的菜单项
-  const getSelectedMenuKey = () => {
-    const { pathname } = location;
-    
-    // 特殊处理变量调试页面，让它选中变量列表菜单
-    if (pathname === '/variable/debug') {
-      return '/variable/list';
-    }
-    
-    // 其他情况根据路径前缀匹配
-    if (pathname.startsWith('/npc/')) {
-      return '/npc/list';
-    }
-    
-    if (pathname.startsWith('/variable/')) {
-      return '/variable/list'; 
-    }
-    
-    if (pathname.startsWith('/task') || pathname.startsWith('/work-task/')) {
-      return '/task';
-    }
-    
-    if (pathname.startsWith('/workflow/')) {
-      return '/workflow';
-    }
-    
-    if (pathname.startsWith('/ai-service/')) {
-      return '/ai-service';
-    }
-    
-    // 默认返回当前路径或首页
-    return pathname === '/' ? '/' : pathname;
-  };
   
   // 自动折叠导航栏 - 工作流编辑、创建和使用页面
   React.useEffect(() => {
@@ -67,52 +22,6 @@ const MainLayout: React.FC = () => {
       setCollapsed(true);
     }
   }, [location.pathname]);
-
-  const menuItems = [
-    {
-      key: '/',
-      icon: <AppstoreOutlined />,
-      label: '首页',
-      onClick: () => navigate('/'),
-    },
-    {
-      key: '/npc/list',
-      icon: <UserOutlined />,
-      label: 'NPC管理',
-      onClick: () => navigate('/npc/list'),
-    },
-    {
-      key: '/task',
-      icon: <ExperimentOutlined />,
-      label: '工作任务',
-      onClick: () => navigate('/task'),
-    },
-    // 工作流菜单项 - 受功能标记控制
-    ...(ENABLE_WORKFLOW ? [{
-      key: '/workflow',
-      icon: <PartitionOutlined />,
-      label: '工作流',
-      onClick: () => navigate('/workflow'),
-    }] : []),
-    {
-      key: '/variable/list',
-      icon: <DatabaseOutlined />,
-      label: '全局变量',
-      onClick: () => navigate('/variable/list'),
-    },
-    {
-      key: '/ai-service',
-      icon: <ApiOutlined />,
-      label: 'AI服务',
-      onClick: () => navigate('/ai-service'),
-    },
-    {
-      key: '/settings',
-      icon: <SettingOutlined />,
-      label: '设置',
-      onClick: () => navigate('/settings'),
-    },
-  ];
 
   // 计算内容区域的左侧内边距，根据侧边栏是否折叠而变化
   const contentMarginLeft = collapsed ? 80 : 200;
@@ -149,13 +58,7 @@ const MainLayout: React.FC = () => {
             zIndex: 1
           }}
         >
-          <Menu
-            theme="dark"
-            mode="inline"
-            selectedKeys={[getSelectedMenuKey()]}
-            items={menuItems}
-            style={{ height: '100%', borderRight: 0 }}
-          />
+          <SideMenu />
         </Sider>
         <Layout style={{ padding: '24px', marginLeft: contentMarginLeft, transition: 'margin-left 0.2s' }}>
           <Content

@@ -136,7 +136,7 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workflow, onDelete, onCopy,
           <div 
             style={{ 
               height: 120, 
-              background: workflow.isActive ? '#f6ffed' : '#f9f9f9',
+              background: workflow.isActive ? '#F9F0FF' : '#f9f9f9', // 启用状态从浅绿色改为浅紫色
               borderBottom: '1px solid #f0f0f0',
               padding: 16,
               display: 'flex',
@@ -145,7 +145,7 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workflow, onDelete, onCopy,
               position: 'relative'
             }}
           >
-            <PlayCircleOutlined style={{ fontSize: 48, color: workflow.isActive ? '#52c41a' : '#d9d9d9' }} />
+            <PlayCircleOutlined style={{ fontSize: 48, color: workflow.isActive ? '#722ED1' : '#d9d9d9' }} />
             
             {/* 状态指示点 */}
             <div 
@@ -156,7 +156,7 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workflow, onDelete, onCopy,
                 width: 8,
                 height: 8,
                 borderRadius: '50%',
-                background: workflow.isActive ? '#52c41a' : '#d9d9d9'
+                background: workflow.isActive ? '#722ED1' : '#d9d9d9' // 状态点从绿色改为紫色
               }}
             />
             
@@ -246,7 +246,7 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workflow, onDelete, onCopy,
             更新时间: {formatDate(workflow.updatedAt)}
           </Text>
           <Text style={{ marginTop: 8 }}>
-            状态: <Text type={workflow.isActive ? 'success' : 'secondary'}>
+            状态: <Text style={workflow.isActive ? { color: '#722ED1' } : { color: '#8c8c8c' }}>
               {workflow.isActive ? '已启用' : '未启用'}
             </Text>
           </Text>

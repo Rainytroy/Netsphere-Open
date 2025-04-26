@@ -4,6 +4,7 @@ import { AiService, AiServiceType } from "../models/AiService";
 import { AppDataSource } from "../database";
 import { DeepseekAdapter } from "../adapters/DeepseekAdapter";
 import { AnthropicAdapter } from "../adapters/AnthropicAdapter";
+import { VolcesAdapter } from "../adapters/VolcesAdapter";
 
 /**
  * AI服务控制器，管理AI服务的CRUD操作和连接测试
@@ -285,6 +286,9 @@ export class AiServiceController {
           break;
         case AiServiceType.ANTHROPIC:
           adapter = new AnthropicAdapter();
+          break;
+        case AiServiceType.VOLCES:
+          adapter = new VolcesAdapter();
           break;
         default:
           return res.status(400).json({ message: '不支持的服务类型' });

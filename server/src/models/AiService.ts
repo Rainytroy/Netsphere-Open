@@ -4,7 +4,8 @@ import crypto from 'crypto';
 // AI服务类型枚举
 export enum AiServiceType {
   DEEPSEEK = 'deepseek',
-  ANTHROPIC = 'anthropic'
+  ANTHROPIC = 'anthropic',
+  VOLCES = 'volces'
 }
 
 @Entity("ai_services")
@@ -36,6 +37,9 @@ export class AiService {
 
   @Column({ default: false })
   isDefault: boolean;
+  
+  @Column({ default: false })
+  useStream: boolean;
 
   @CreateDateColumn()
   createdAt: Date;
@@ -54,7 +58,12 @@ export class AiService {
 
   // 加密方法 - 使用环境变量中的密钥
   private encrypt(text: string): string {
-    const encryptionKey = process.env.ENCRYPTION_KEY || 'default-encryption-key-for-development';
+    // 检查是否设置了加密密钥环境变量
+    if (!process.env.ENCRYPTION_KEY) {
+      throw new Error('未设置ENCRYPTION_KEY环境变量，请在.env文件中配置此项');
+    }
+    
+    const encryptionKey = process.env.ENCRYPTION_KEY;
     
     // 使用固定长度的密钥（AES-256需要32字节密钥）
     const key = Buffer.from(encryptionKey.padEnd(32, '0').slice(0, 32));
@@ -77,7 +86,12 @@ export class AiService {
       return this.apiKey;
     }
 
-    const encryptionKey = process.env.ENCRYPTION_KEY || 'default-encryption-key-for-development';
+    // 检查是否设置了加密密钥环境变量
+    if (!process.env.ENCRYPTION_KEY) {
+      throw new Error('未设置ENCRYPTION_KEY环境变量，请在.env文件中配置此项');
+    }
+    
+    const encryptionKey = process.env.ENCRYPTION_KEY;
     const key = Buffer.from(encryptionKey.padEnd(32, '0').slice(0, 32));
     
     const [ivHex, encryptedText] = this.apiKey.split(':');
@@ -124,6 +138,12 @@ export const serviceConfigTemplates: Record<AiServiceType, {
         label: '最大Token数',
         type: 'number',
         defaultValue: 2000
+      },
+      {
+        name: 'useStream',
+        label: '使用流式输出',
+        type: 'switch',
+        defaultValue: false
       }
     ]
   },
@@ -146,6 +166,35 @@ export const serviceConfigTemplates: Record<AiServiceType, {
         label: '最大Token数',
         type: 'number',
         defaultValue: 4000
+      }
+    ]
+  },
+  [AiServiceType.VOLCES]: {
+    requiresBaseUrl: true,
+    availableModels: [
+      { value: 'deepseek-v3-250324', label: 'DeepSeek V3' },
+      { value: 'deepseek-r1-250120', label: 'DeepSeek R1' },
+      { value: 'doubao-1-5-thinking-pro-250415', label: '豆包大模型' }
+    ],
+    defaultModel: 'deepseek-v3-250324',
+    configFields: [
+      {
+        name: 'temperature',
+        label: '温度',
+        type: 'number',
+        defaultValue: 0.7
+      },
+      {
+        name: 'maxTokens',
+        label: '最大Token数',
+        type: 'number',
+        defaultValue: 2000
+      },
+      {
+        name: 'useStream',
+        label: '使用流式输出',
+        type: 'switch',
+        defaultValue: false
       }
     ]
   }

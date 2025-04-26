@@ -7,7 +7,8 @@ const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:300
 // AI服务类型枚举
 export enum AiServiceType {
   DEEPSEEK = 'deepseek',
-  ANTHROPIC = 'anthropic'
+  ANTHROPIC = 'anthropic',
+  VOLCES = 'volces'
 }
 
 // AI服务数据模型
@@ -20,6 +21,7 @@ export interface AiService {
   defaultModel?: string;          // 默认模型
   config?: Record<string, any>;   // 其他配置参数
   isDefault?: boolean;            // 是否为默认服务
+  useStream?: boolean;            // 是否使用流式输出（仅DeepSeek支持）
   createdAt: Date;                // 创建时间
   updatedAt: Date;                // 更新时间
 }
@@ -168,6 +170,12 @@ export const serviceConfigTemplates: Record<AiServiceType, {
         label: '最大Token数',
         type: 'number',
         defaultValue: 2000
+      },
+      {
+        name: 'useStream',
+        label: '使用流式输出',
+        type: 'switch',
+        defaultValue: false
       }
     ]
   },
@@ -193,6 +201,35 @@ export const serviceConfigTemplates: Record<AiServiceType, {
         defaultValue: 4000
       }
     ]
+  },
+  [AiServiceType.VOLCES]: {
+    requiresBaseUrl: true,
+    availableModels: [
+      { value: 'deepseek-v3-250324', label: 'DeepSeek V3' },
+      { value: 'deepseek-r1-250120', label: 'DeepSeek R1' },
+      { value: 'doubao-1-5-thinking-pro-250415', label: 'doubao-1-5-thinking-pro-250415' }
+    ],
+    defaultModel: 'deepseek-v3-250324',
+    configFields: [
+      {
+        name: 'temperature',
+        label: '温度',
+        type: 'number',
+        defaultValue: 0.7
+      },
+      {
+        name: 'maxTokens',
+        label: '最大Token数',
+        type: 'number',
+        defaultValue: 2000
+      },
+      {
+        name: 'useStream',
+        label: '使用流式输出',
+        type: 'switch',
+        defaultValue: false
+      }
+    ]
   }
 };
 
@@ -202,6 +239,8 @@ export function getServiceTypeLabel(type: AiServiceType): string {
       return 'DeepSeek';
     case AiServiceType.ANTHROPIC:
       return 'Anthropic Claude';
+    case AiServiceType.VOLCES:
+      return '火山引擎AI';
     default:
       return type;
   }

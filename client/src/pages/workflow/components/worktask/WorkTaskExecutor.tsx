@@ -17,6 +17,16 @@ export enum ExecutionPhase {
   ERROR = 'error'
 }
 
+// 定义时间戳接口
+export interface ExecutionTimestamps {
+  startTime?: number;           // 开始执行时间
+  apiCallStartTime?: number;    // API调用开始时间
+  apiCallEndTime?: number;      // API调用完成时间
+  renderCompleteTime?: number;  // 渲染完成时间
+  statusCompleteTime?: number;  // 状态变为completed的时间（由ExecutionNodeCard设置）
+  nextNodeTime?: number;        // 通知下一节点时间（由WorkTaskNode设置）
+}
+
 // 接口定义
 export interface WorkTaskExecutorProps {
   workTaskId: string;           // 工作任务ID，用于API调用
@@ -29,7 +39,8 @@ export interface WorkTaskExecutorProps {
     progress: number;
     message?: string;
   }) => void;
-  onComplete?: (output: string) => void; // 完成回调
+  onComplete?: (output: string, timestamps: ExecutionTimestamps) => void; // API调用完成回调
+  onRenderComplete?: (output: string, timestamps: ExecutionTimestamps) => void; // 结果渲染完成回调，表示UI已更新
 }
 
 // 工作任务执行器组件
@@ -40,7 +51,8 @@ const WorkTaskExecutor: React.FC<WorkTaskExecutorProps> = ({
   autoExecute = true,
   simplified = true,
   onStatusChange,
-  onComplete
+  onComplete,
+  onRenderComplete
 }) => {
   // 执行阶段
   const [phase, setPhase] = useState<ExecutionPhase>(ExecutionPhase.IDLE);
@@ -59,6 +71,9 @@ const WorkTaskExecutor: React.FC<WorkTaskExecutorProps> = ({
   
   // 是否正在执行
   const [isExecuting, setIsExecuting] = useState<boolean>(false);
+  
+  // 执行时间戳
+  const [timestamps, setTimestamps] = useState<ExecutionTimestamps>({});
 
   // 更新状态并触发回调
   const updateStatus = (newPhase: ExecutionPhase, newProgress: number, message?: string) => {
@@ -86,23 +101,41 @@ const WorkTaskExecutor: React.FC<WorkTaskExecutorProps> = ({
       setError(null);
       setDuration(undefined);
       
+      // 记录开始执行时间
       startTime = Date.now();
+      const currentTimestamps: ExecutionTimestamps = {
+        startTime
+      };
+      setTimestamps(currentTimestamps);
+      console.log(`[WorkTaskExecutor] 开始执行时间: ${new Date(startTime).toISOString()}`);
       
-      // 更新状态为准备中
+      // 更新状态为准备中 - 10%进度
       updateStatus(ExecutionPhase.PREPARING, 10);
       
       // 添加小延迟以便UI更新
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      // 更新状态为API调用中
-      updateStatus(ExecutionPhase.API_CALLING, 30);
+      // 记录API调用开始时间
+      const apiCallStartTime = Date.now();
+      currentTimestamps.apiCallStartTime = apiCallStartTime;
+      setTimestamps(currentTimestamps);
+      console.log(`[WorkTaskExecutor] API调用开始时间: ${new Date(apiCallStartTime).toISOString()}`);
+      
+      // 更新状态为API调用中 - 20%进度
+      updateStatus(ExecutionPhase.API_CALLING, 20);
       
       // 调用后端API执行工作任务
       const updatedTask = await workTaskService.executeWorkTask(workTaskId);
       
       if (updatedTask) {
-        // 更新状态为处理响应
-        updateStatus(ExecutionPhase.PROCESSING_RESPONSE, 70);
+        // 记录API调用完成时间
+        const apiCallEndTime = Date.now();
+        currentTimestamps.apiCallEndTime = apiCallEndTime;
+        setTimestamps(currentTimestamps);
+        console.log(`[WorkTaskExecutor] API调用完成时间: ${new Date(apiCallEndTime).toISOString()}`);
+        
+        // 更新状态为处理响应 - API调用完成后进度为50%
+        updateStatus(ExecutionPhase.PROCESSING_RESPONSE, 50);
         
         // 添加小延迟以便UI更新
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -115,12 +148,12 @@ const WorkTaskExecutor: React.FC<WorkTaskExecutorProps> = ({
         const endTime = Date.now();
         setDuration(endTime - startTime);
         
-        // 更新状态为已完成
-        updateStatus(ExecutionPhase.COMPLETED, 100);
+        // 设置为预备渲染阶段 - 70%进度
+        updateStatus(ExecutionPhase.UPDATING_STATE, 70);
         
         // 触发完成回调
         if (onComplete) {
-          onComplete(taskOutput);
+          onComplete(taskOutput, currentTimestamps);
         }
       } else {
         throw new Error('未返回有效的工作任务数据');
@@ -146,6 +179,32 @@ const WorkTaskExecutor: React.FC<WorkTaskExecutorProps> = ({
       executeTask();
     }
   }, [workTaskId, autoExecute]);
+  
+  // 监听渲染完成
+  useEffect(() => {
+    // 当输出结果存在且状态为UPDATING_STATE时，表示准备渲染完成
+    if (output && phase === ExecutionPhase.UPDATING_STATE && onRenderComplete) {
+      // 添加短暂延迟确保DOM已完全更新
+      setTimeout(() => {
+        // 记录渲染完成时间
+        const renderCompleteTime = Date.now();
+        const updatedTimestamps = {
+          ...timestamps,
+          renderCompleteTime
+        };
+        setTimestamps(updatedTimestamps);
+        console.log(`[WorkTaskExecutor] 结果渲染完成时间: ${new Date(renderCompleteTime).toISOString()}`);
+        
+        // 恢复自动更新状态为已完成，让进度条能走到100%
+        // 但这只影响WorkTaskExecutor内部状态，不会自动改变节点的整体状态
+        console.log(`[WorkTaskExecutor] 结果已渲染完成，更新执行器内部状态为COMPLETED，进度100%`);
+        updateStatus(ExecutionPhase.COMPLETED, 100);
+        
+        // 触发渲染完成回调，但由于ExecutionNodeCard的修改，不会自动改变节点状态
+        onRenderComplete(output, updatedTimestamps);
+      }, 500); // 增加延迟，确保DOM完全更新
+    }
+  }, [output, phase, onRenderComplete, timestamps, updateStatus]);
   
   // 简化模式UI
   if (simplified) {

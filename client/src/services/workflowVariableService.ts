@@ -160,18 +160,78 @@ class WorkflowVariableService {
     description: string = '',
     isActive: boolean = false
   ): Promise<void> {
+    // 生成请求ID用于日志跟踪
+    const reqId = new Date().getTime().toString(36) + Math.random().toString(36).substring(2, 5);
+    
+    console.log(`[workflowVariableService] [${reqId}] 初始化工作流基本变量:`, {
+      workflowId: workflowId, 
+      name, 
+      description: description ? description.substring(0, 30) + '...' : '',
+      isActive,
+      isActiveType: typeof isActive
+    });
+    
     try {
       await axios.post(`${API_BASE_URL}/workflows/init-variables`, {
         workflowId,
         name,
         description,
-        isActive
+        // 确保isActive是布尔类型
+        isActive: isActive === true
       });
+      
+      console.log(`[workflowVariableService] [${reqId}] 初始化工作流变量成功，isActive=${isActive}`);
       
       // 通知变量事件服务，触发变量变更事件
       VariableEventService.notifyVariableChange();
     } catch (error) {
-      console.error('初始化工作流基本变量失败:', error);
+      console.error(`[workflowVariableService] [${reqId}] 初始化工作流基本变量失败:`, error);
+      throw error;
+    }
+  }
+  
+  /**
+   * 更新工作流变量 - 仅更新提供的值，不使用默认值
+   * 这个函数与initWorkflowBaseVariables不同，它不会使用任何默认值，只会更新传入的值
+   * @param workflowId 工作流ID
+   * @param name 工作流名称
+   * @param description 工作流描述
+   * @param isActive 工作流是否激活
+   */
+  async updateWorkflowVariables(
+    workflowId: string,
+    name: string,
+    description: string,
+    isActive: boolean
+  ): Promise<void> {
+    // 生成请求ID用于日志跟踪
+    const reqId = new Date().getTime().toString(36) + Math.random().toString(36).substring(2, 5);
+    
+    console.log(`[workflowVariableService] [${reqId}] 更新工作流变量(专用更新函数):`, {
+      workflowId,
+      name,
+      description: description ? description.substring(0, 30) + '...' : '',
+      isActive,
+      isActiveType: typeof isActive
+    });
+    
+    try {
+      // 注意：这里使用的是与initWorkflowBaseVariables相同的API端点
+      // 因为服务器端可能没有专门的更新端点
+      await axios.post(`${API_BASE_URL}/workflows/init-variables`, {
+        workflowId,
+        name,
+        description,
+        // 不使用isActive === true转换，直接传递用户设置的值
+        isActive: isActive
+      });
+      
+      console.log(`[workflowVariableService] [${reqId}] 更新工作流变量成功，isActive=${isActive} (${typeof isActive})`);
+      
+      // 通知变量事件服务，触发变量变更事件
+      VariableEventService.notifyVariableChange();
+    } catch (error) {
+      console.error(`[workflowVariableService] [${reqId}] 更新工作流变量失败:`, error);
       throw error;
     }
   }

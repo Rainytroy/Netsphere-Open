@@ -1,62 +1,60 @@
-# 依赖包
+# 依赖目录
 node_modules/
-npm-debug.log
-package-lock.json
+.pnp/
+.pnp.js
 
-# 构建输出
-/dist
-/build
-server/dist/
+# 编译输出
+dist/
+build/
+*.tsbuildinfo
 
-# IDE和编辑器文件
-.idea/
-.vscode/
-*.sublime-*
-.DS_Store
+# 测试覆盖
+coverage/
 
 # 环境变量和配置
 .env
 .env.local
-.env.*.local
-*.config.local.js
+.env.development.local
+.env.test.local
+.env.production.local
 
-# 日志
-*.log
+# 数据库文件
+*.db
+*.sqlite
+*.sqlite3
+database/*.db
+database/*.sqlite
+database/*.sqlite3
+
+# 日志文件
 logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # 文档目录
 docs/
 
-# 备份文件
-backup/
-*_backup*
-*.backup.*
-*.bak
+# 上传目录
+uploads/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# IDE 和编辑器
+.idea/
+.vscode/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# 本地数据
+data/
 *.backup
-*_backup_*
 
 # 临时文件
 *.tmp
-temp/
-.cache/
-
-# 调试和测试相关
-tests/
-*.test.js
-*.spec.js
-*.test.ts
-*.spec.ts
-coverage/
-
-# 错误报告和问题追踪
-*BUGFIX-REPORT*
-*bugfix*
-*bug-report*
-
-# 数据库迁移脚本
-server/scripts/
-server/migrations/
-
-# 项目特定排除
-variable-id-bugfix-*.md
-*.http
+*.temp
